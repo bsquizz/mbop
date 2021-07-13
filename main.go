@@ -296,6 +296,7 @@ func usersV2Handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func mainHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("%s %s %s\n", r.RemoteAddr, r.Method, r.URL)
 	switch {
 	case r.URL.Path == "/":
 		statusHandler(w, r)
