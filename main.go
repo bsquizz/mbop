@@ -175,6 +175,25 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "couldn't auth user", http.StatusForbidden)
 		return
 	}
+
+	userObj, err := findUserById(username)
+
+	if err != nil {
+		http.Error(w, "couldn't find user", http.StatusForbidden)
+		return
+	}
+
+	respObj := Resp{
+		User:      *userObj,
+		Mechanism: "Basic",
+	}
+	str, err := json.Marshal(respObj)
+	if err != nil {
+		http.Error(w, "could not create response", http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Fprint(w, string(str))
 }
 
 func statusHandler(w http.ResponseWriter, r *http.Request) {
