@@ -28,6 +28,7 @@ type User struct {
 	OrgID         int    `json:"org_id"`
 	DisplayName   string `json:"display_name"`
 	Type          string `json:"type"`
+	Entitlements  string `json:"entitlements"`
 }
 
 var KEYCLOAK_SERVER string
@@ -274,6 +275,7 @@ func getUsers() (users []User, err error) {
 			OrgID:         OrgID,
 			DisplayName:   user.FirstName,
 			Type:          "User",
+			Entitlements:  user.Attributes["entitlements"][0],
 		})
 	}
 	fmt.Printf("%v", obj)
