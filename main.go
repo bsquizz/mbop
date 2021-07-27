@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -8,12 +9,12 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 )
 
 type User struct {
 	Username      string `json:"username"`
-	Password      string `json:"password"`
 	ID            int    `json:"id"`
 	Email         string `json:"email"`
 	FirstName     string `json:"first_name"`
@@ -41,43 +42,6 @@ type usersByInput struct {
 	PrincipalStartsWith string `json:"principalStartsWith"`
 }
 
-var USERS = []User{
-	{
-		Username:      "jdoe",
-		Password:      "redhat",
-		ID:            123456,
-		Email:         "jdoe@redhat.com",
-		FirstName:     "John",
-		LastName:      "Doe",
-		AccountNumber: "000006",
-		AddressString: "Not Known",
-		IsActive:      true,
-		IsOrgAdmin:    true,
-		IsInternal:    false,
-		Locale:        "en_US",
-		OrgID:         1234567,
-		DisplayName:   "JDOE",
-		Type:          "User",
-	},
-	{
-		Username:      "mdoe",
-		Password:      "redhat",
-		ID:            123457,
-		Email:         "mdoe@redhat.com",
-		FirstName:     "Marge",
-		LastName:      "Doe",
-		AccountNumber: "000006",
-		AddressString: "Not Known",
-		IsActive:      true,
-		IsOrgAdmin:    false,
-		IsInternal:    false,
-		Locale:        "en_US",
-		OrgID:         1234567,
-		DisplayName:   "JDOE",
-		Type:          "User",
-	},
-}
-
 type Resp struct {
 	User      User   `json:"user"`
 	Mechanism string `json:"mechanism"`
@@ -98,7 +62,13 @@ type V1UserInput struct {
 }
 
 func findUserById(username string) (*User, error) {
-	for _, user := range USERS {
+	users, err := getUsers()
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, user := range users {
 		if user.Username == username {
 			return &user, nil
 		}
@@ -106,9 +76,15 @@ func findUserById(username string) (*User, error) {
 	return nil, fmt.Errorf("User is not known")
 }
 
-func findUsersBy(accountNo string, adminOnly string, input *usersByInput, users *V1UserInput) []User {
+func findUsersBy(accountNo string, adminOnly string, input *usersByInput, users *V1UserInput) ([]User, error) {
+	usersList, err := getUsers()
+
+	if err != nil {
+		return nil, err
+	}
+
 	out := []User{}
-	for _, user := range USERS {
+	for _, user := range usersList {
 		if adminOnly == "true" && !user.IsOrgAdmin {
 			continue
 		}
@@ -139,7 +115,7 @@ func findUsersBy(accountNo string, adminOnly string, input *usersByInput, users 
 		}
 		out = append(out, user)
 	}
-	return out
+	return out, nil
 }
 
 func jwtHandler(w http.ResponseWriter, r *http.Request) {
@@ -184,28 +160,19 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	parts := strings.Split(string(data), ":")
 
-	user := parts[0]
+	username := parts[0]
+	password := parts[1]
 
-	userObj, err := findUserById(user)
 	if err != nil {
-		http.Error(w, "user not found", http.StatusForbidden)
+		http.Error(w, fmt.Sprintf("can't create keycloak client: %s", err.Error()), http.StatusForbidden)
 		return
 	}
-	if userObj.Password != string(parts[1]) {
-		http.Error(w, "bad creds", http.StatusUnauthorized)
-		return
-	} else {
-		respObj := Resp{
-			User:      *userObj,
-			Mechanism: "Basic",
-		}
-		str, err := json.Marshal(respObj)
-		if err != nil {
-			http.Error(w, "could not create response", http.StatusInternalServerError)
-			return
-		}
 
-		fmt.Fprint(w, string(str))
+	_, err = k.getGenericToken("redhat-external", username, password)
+
+	if err != nil {
+		http.Error(w, "couldn't auth user", http.StatusForbidden)
+		return
 	}
 }
 
@@ -230,7 +197,12 @@ func usersV1(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	users := findUsersBy("", "false", nil, filt)
+	users, err := findUsersBy("", "false", nil, filt)
+
+	if err != nil {
+		http.Error(w, "could not get response", http.StatusInternalServerError)
+		return
+	}
 
 	str, err := json.Marshal(users)
 	if err != nil {
@@ -241,13 +213,85 @@ func usersV1(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, string(str))
 }
 
+type usersSpec struct {
+	Username   string              `json:"username"`
+	Enabled    bool                `json:"enabled"`
+	FirstName  string              `json:"firstName"`
+	LastName   string              `json:"lastName"`
+	Email      string              `json:"email"`
+	Attributes map[string][]string `json:"attributes"`
+}
+
+func getUsers() (users []User, err error) {
+	resp, err := k.Get("/auth/admin/realms/redhat-external/users?max=2000", "", map[string]string{})
+	if err != nil {
+		fmt.Printf("\n\n%s\n\n", err.Error())
+	}
+
+	obj := &[]usersSpec{}
+
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(data, obj)
+
+	if err != nil {
+		return nil, err
+	}
+
+	users = []User{}
+
+	for _, user := range *obj {
+		IsActiveRaw := user.Attributes["is_active"][0]
+		IsActive, _ := strconv.ParseBool(IsActiveRaw)
+
+		IsOrgAdminRaw := user.Attributes["is_org_admin"][0]
+		IsOrgAdmin, _ := strconv.ParseBool(IsOrgAdminRaw)
+
+		IsInternalRaw := user.Attributes["is_org_admin"][0]
+		IsInternal, _ := strconv.ParseBool(IsInternalRaw)
+
+		IDRaw := user.Attributes["account_id"][0]
+		ID, _ := strconv.Atoi(IDRaw)
+
+		OrgIDRaw := user.Attributes["org_id"][0]
+		OrgID, _ := strconv.Atoi(OrgIDRaw)
+
+		users = append(users, User{
+			Username:      user.Username,
+			ID:            ID,
+			Email:         user.Email,
+			FirstName:     user.FirstName,
+			LastName:      user.LastName,
+			AccountNumber: user.Attributes["account_number"][0],
+			AddressString: "unknown",
+			IsActive:      IsActive,
+			IsOrgAdmin:    IsOrgAdmin,
+			IsInternal:    IsInternal,
+			Locale:        "en_US",
+			OrgID:         OrgID,
+			DisplayName:   user.FirstName,
+			Type:          "User",
+		})
+	}
+	fmt.Printf("%v", obj)
+	return users, nil
+}
+
 func usersV1Handler(w http.ResponseWriter, r *http.Request) {
 	urlParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
 	accountId := urlParts[2]
 	switch {
 	case urlParts[3] == "users" && r.Method == "GET":
 		adminOnly := r.URL.Query().Get("admin_only")
-		users := findUsersBy(accountId, adminOnly, nil, nil)
+		users, err := findUsersBy(accountId, adminOnly, nil, nil)
+		if err != nil {
+			http.Error(w, "could not get response", http.StatusInternalServerError)
+			return
+		}
+
 		str, err := json.Marshal(users)
 		if err != nil {
 			http.Error(w, "could not create response", http.StatusInternalServerError)
@@ -268,7 +312,11 @@ func usersV1Handler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		users := findUsersBy(accountId, "false", filt, nil)
+		users, err := findUsersBy(accountId, "false", filt, nil)
+		if err != nil {
+			http.Error(w, "could not get response", http.StatusInternalServerError)
+			return
+		}
 		str, err := json.Marshal(users)
 		if err != nil {
 			http.Error(w, "could not create response", http.StatusInternalServerError)
@@ -281,7 +329,11 @@ func usersV1Handler(w http.ResponseWriter, r *http.Request) {
 func usersV2Handler(w http.ResponseWriter, r *http.Request) {
 	urlParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
 	accountId := urlParts[2]
-	users := findUsersBy(accountId, "false", nil, nil)
+	users, err := findUsersBy(accountId, "false", nil, nil)
+	if err != nil {
+		http.Error(w, "could not get response", http.StatusInternalServerError)
+		return
+	}
 	respObj := AccV2Resp{
 		Users:     users,
 		UserCount: len(users),
@@ -313,7 +365,16 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+var k *KeyCloakClient
+
 func main() {
+	key, err := NewKeyCloakClient(KEYCLOAK_SERVER, "admin", "admin", context.Background(), "master")
+
+	k = key
+
+	if err != nil {
+		log.Fatal("NOO - couldn't connect to keycloak")
+	}
 	http.HandleFunc("/", mainHandler)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
