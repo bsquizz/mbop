@@ -11,6 +11,7 @@ USER 0
 RUN go mod download
 
 COPY main.go main.go
+COPY keycloak.go keycloak.go
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build
 
 # Use distroless as minimal base image to package the manager binary
