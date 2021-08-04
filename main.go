@@ -32,9 +32,19 @@ type User struct {
 }
 
 var KEYCLOAK_SERVER string
+var KEYCLOAK_USERNAME string
+var KEYCLOAK_PASSWORD string
 
 func init() {
 	KEYCLOAK_SERVER = os.Getenv("KEYCLOAK_SERVER")
+	KEYCLOAK_USERNAME = os.Getenv("KEYCLOAK_USERNAME")
+	KEYCLOAK_PASSWORD = os.Getenv("KEYCLOAK_PASSWORD")
+	if KEYCLOAK_USERNAME == "" {
+		KEYCLOAK_USERNAME = "admin"
+	}
+	if KEYCLOAK_PASSWORD == "" {
+		KEYCLOAK_PASSWORD = "admin"
+	}
 }
 
 type usersByInput struct {
@@ -389,7 +399,7 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 var k *KeyCloakClient
 
 func main() {
-	key, err := NewKeyCloakClient(KEYCLOAK_SERVER, "admin", "admin", context.Background(), "master")
+	key, err := NewKeyCloakClient(KEYCLOAK_SERVER, KEYCLOAK_USERNAME, KEYCLOAK_PASSWORD, context.Background(), "master")
 
 	k = key
 
