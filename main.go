@@ -384,6 +384,14 @@ func usersV2Handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func entitlements(w http.ResponseWriter, r *http.Request) {
+	ALL_PASS := os.Getenv("ALL_PASS")
+
+	if ALL_PASS != "" {
+		fmt.Printf("ALL_PASS")
+		fmt.Fprint(w, "{\"insights\": {\"is_trial\": false, \"is_enabled\": true}}")
+		return
+	}
+
 	userObj, err := getUser(w, r)
 
 	if err != nil {
