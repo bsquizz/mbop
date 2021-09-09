@@ -388,7 +388,7 @@ func entitlements(w http.ResponseWriter, r *http.Request) {
 
 	if ALL_PASS != "" {
 		fmt.Printf("ALL_PASS")
-		fmt.Fprint(w, "{\"insights\": {\"is_trial\": false, \"is_enabled\": true}}")
+		fmt.Fprint(w, "{\"ansible\": {\"is_entitled\": true, \"is_trial\": false}, \"cost_management\": {\"is_entitled\": true, \"is_trial\": false}, \"insights\": {\"is_entitled\": true, \"is_trial\": false}, \"advisor\": {\"is_entitled\": true, \"is_trial\": false}, \"migrations\": {\"is_entitled\": true, \"is_trial\": false}, \"openshift\": {\"is_entitled\": true, \"is_trial\": false}, \"settings\": {\"is_entitled\": true, \"is_trial\": false}, \"smart_management\": {\"is_entitled\": true, \"is_trial\": false}, \"subscriptions\": {\"is_entitled\": true, \"is_trial\": false}, \"user_preferences\": {\"is_entitled\": true, \"is_trial\": false}, \"notifications\": {\"is_entitled\": true, \"is_trial\": false}, \"integrations\": {\"is_entitled\": true, \"is_trial\": false}, \"automation_analytics\": {\"is_entitled\": true, \"is_trial\": false}}")
 		return
 	}
 
