@@ -152,22 +152,19 @@ func jwtHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, realm.PublicKey)
 }
 
-func authHandler(w http.ResponseWriter, r *http.Request) {
+func getUser(w http.ResponseWriter, r *http.Request) (*User, error) {
 	auth := r.Header.Get("Authorization")
 	if auth == "" {
-		http.Error(w, "no auth header found", http.StatusForbidden)
-		return
+		return &User{}, fmt.Errorf("no auth header found")
 	}
 	if !strings.Contains(auth, "Basic") {
-		http.Error(w, "auth header is not basic", http.StatusForbidden)
-		return
+		return &User{}, fmt.Errorf("auth header is not basic")
 	}
 
 	data, err := base64.StdEncoding.DecodeString(auth[6:])
 
 	if err != nil {
-		http.Error(w, "could not split header", http.StatusForbidden)
-		return
+		return &User{}, fmt.Errorf("could not split header")
 	}
 	parts := strings.Split(string(data), ":")
 
@@ -175,21 +172,29 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 	password := parts[1]
 
 	if err != nil {
-		http.Error(w, fmt.Sprintf("can't create keycloak client: %s", err.Error()), http.StatusForbidden)
-		return
+		return &User{}, fmt.Errorf("can't create keycloak client: %s", err.Error())
 	}
 
 	_, err = k.getGenericToken("redhat-external", username, password)
 
 	if err != nil {
-		http.Error(w, "couldn't auth user", http.StatusForbidden)
-		return
+		return &User{}, fmt.Errorf("couldn't auth user: %s", err.Error())
 	}
 
 	userObj, err := findUserById(username)
 
 	if err != nil {
-		http.Error(w, "couldn't find user", http.StatusForbidden)
+		return &User{}, fmt.Errorf("couldn't find user: %s", err.Error())
+	}
+	return userObj, nil
+}
+
+func authHandler(w http.ResponseWriter, r *http.Request) {
+
+	userObj, err := getUser(w, r)
+
+	if err != nil {
+		http.Error(w, fmt.Sprintf("couldn't auth user: %s", err.Error()), http.StatusForbidden)
 		return
 	}
 
@@ -378,6 +383,17 @@ func usersV2Handler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, string(str))
 }
 
+func entitlements(w http.ResponseWriter, r *http.Request) {
+	userObj, err := getUser(w, r)
+
+	if err != nil {
+		http.Error(w, fmt.Sprintf("couldn't auth user: %s", err.Error()), http.StatusForbidden)
+		return
+	}
+
+	fmt.Fprint(w, string(userObj.Entitlements))
+}
+
 func mainHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s %s\n", r.RemoteAddr, r.Method, r.URL)
 	switch {
@@ -393,6 +409,8 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 		usersV1Handler(w, r)
 	case r.URL.Path[:12] == "/v2/accounts":
 		usersV2Handler(w, r)
+	case r.URL.Path == "/api/entitlements/v1/services":
+		entitlements(w, r)
 	}
 }
 
