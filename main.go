@@ -87,7 +87,7 @@ func findUserById(username string) (*User, error) {
 	return nil, fmt.Errorf("User is not known")
 }
 
-func findUsersBy(accountNo string, adminOnly string, input *usersByInput, users *V1UserInput) ([]User, error) {
+func findUsersBy(accountNo string, adminOnly string, status string, limit int, input *usersByInput, users *V1UserInput) ([]User, error) {
 	usersList, err := getUsers()
 
 	if err != nil {
@@ -96,8 +96,17 @@ func findUsersBy(accountNo string, adminOnly string, input *usersByInput, users 
 
 	out := []User{}
 	for _, user := range usersList {
+		// When adminOnly is true, parameter “status” is ignored
 		if adminOnly == "true" && !user.IsOrgAdmin {
 			continue
+		} else {
+			if status == "disabled" && user.IsActive {
+				continue
+			} else if status == "enabled" && !user.IsActive {
+				continue
+			} else if status != "all" && !user.IsActive {
+				continue
+			}
 		}
 		if accountNo != "" && user.AccountNumber != accountNo {
 			continue
@@ -125,6 +134,10 @@ func findUsersBy(accountNo string, adminOnly string, input *usersByInput, users 
 			}
 		}
 		out = append(out, user)
+
+		if limit > 0 && len(out) >= limit {
+			break
+		}
 	}
 	return out, nil
 }
@@ -232,7 +245,13 @@ func usersV1(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	users, err := findUsersBy("", "false", nil, filt)
+	adminOnly := r.URL.Query().Get("admin_only")
+	status := r.URL.Query().Get("status")
+	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if err != nil {
+		limit = 0
+	}
+	users, err := findUsersBy("", adminOnly, status, limit, nil, filt)
 
 	if err != nil {
 		http.Error(w, "could not get response", http.StatusInternalServerError)
@@ -322,7 +341,12 @@ func usersV1Handler(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case urlParts[3] == "users" && r.Method == "GET":
 		adminOnly := r.URL.Query().Get("admin_only")
-		users, err := findUsersBy(accountId, adminOnly, nil, nil)
+		status := r.URL.Query().Get("status")
+		limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+		if err != nil {
+			limit = 0
+		}
+		users, err := findUsersBy(accountId, adminOnly, status, limit, nil, nil)
 		if err != nil {
 			http.Error(w, "could not get response", http.StatusInternalServerError)
 			return
@@ -348,7 +372,13 @@ func usersV1Handler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		users, err := findUsersBy(accountId, "false", filt, nil)
+		adminOnly := r.URL.Query().Get("admin_only")
+		status := r.URL.Query().Get("status")
+		limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+		if err != nil {
+			limit = 0
+		}
+		users, err := findUsersBy(accountId, adminOnly, status, limit, filt, nil)
 		if err != nil {
 			http.Error(w, "could not get response", http.StatusInternalServerError)
 			return
@@ -365,7 +395,13 @@ func usersV1Handler(w http.ResponseWriter, r *http.Request) {
 func usersV2Handler(w http.ResponseWriter, r *http.Request) {
 	urlParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
 	accountId := urlParts[2]
-	users, err := findUsersBy(accountId, "false", nil, nil)
+	adminOnly := r.URL.Query().Get("admin_only")
+	status := r.URL.Query().Get("status")
+	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if err != nil {
+		limit = 0
+	}
+	users, err := findUsersBy(accountId, adminOnly, status, limit, nil, nil)
 	if err != nil {
 		http.Error(w, "could not get response", http.StatusInternalServerError)
 		return
