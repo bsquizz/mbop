@@ -100,12 +100,18 @@ func findUsersBy(accountNo string, adminOnly string, status string, limit int, i
 		if adminOnly == "true" && !user.IsOrgAdmin {
 			continue
 		} else {
-			if status == "disabled" && user.IsActive {
-				continue
-			} else if status == "enabled" && !user.IsActive {
-				continue
-			} else if status != "all" && !user.IsActive {
-				continue
+			if status == "disabled" {
+				if user.IsActive {
+					continue
+				}
+			} else if status == "enabled" {
+				if !user.IsActive {
+					continue
+				}
+			} else if status != "all" {
+				if !user.IsActive {
+					continue
+				}
 			}
 		}
 		if accountNo != "" && user.AccountNumber != accountNo {
