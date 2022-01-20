@@ -319,6 +319,15 @@ func getUsers() (users []User, err error) {
 		OrgIDRaw := user.Attributes["org_id"][0]
 		OrgID, _ := strconv.Atoi(OrgIDRaw)
 
+		var entitle string
+
+		if len(user.Attributes["newEntitlements"]) != 0 {
+			entitle = fmt.Sprintf("{%s}", strings.Join(user.Attributes["newEntitlements"], ","))
+
+		} else {
+			entitle = user.Attributes["entitlements"][0]
+		}
+
 		users = append(users, User{
 			Username:      user.Username,
 			ID:            ID,
@@ -334,7 +343,7 @@ func getUsers() (users []User, err error) {
 			OrgID:         OrgID,
 			DisplayName:   user.FirstName,
 			Type:          "User",
-			Entitlements:  user.Attributes["entitlements"][0],
+			Entitlements:  entitle,
 		})
 	}
 	fmt.Printf("%v", obj)
