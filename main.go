@@ -236,7 +236,7 @@ func getUserFromIdentity(r *http.Request) (*User, error) {
 		return &User{}, err
 	}
 
-	if identity.User.Username == "" {
+	if identity.Type != "User" || identity.User.Username == "" {
 		return &User{}, fmt.Errorf("x-rh-identity does not contain username")
 	}
 
