@@ -31,6 +31,17 @@ type User struct {
 	Entitlements  string `json:"entitlements"`
 }
 
+type IdentityUser struct {
+	// A user contains more attributes but we only care about 'username' for now
+	Username string `json:"username"`
+}
+
+type Identity struct {
+	AccountNumber string       `json:"account_number"`
+	Type          string       `json:"type"`
+	User          IdentityUser `json:"user"`
+}
+
 var KEYCLOAK_SERVER string
 var KEYCLOAK_USERNAME string
 var KEYCLOAK_PASSWORD string
@@ -206,6 +217,35 @@ func getUser(w http.ResponseWriter, r *http.Request) (*User, error) {
 		return &User{}, fmt.Errorf("couldn't find user: %s", err.Error())
 	}
 	return userObj, nil
+}
+
+func getUserFromIdentity(r *http.Request) (*User, error) {
+	b64Identity := r.Header.Get("x-rh-identity")
+	if b64Identity == "" {
+		return &User{}, fmt.Errorf("no x-rh-identity header")
+	}
+
+	decodedIdentity, err := base64.StdEncoding.DecodeString(b64Identity)
+	if err != nil {
+		return &User{}, err
+	}
+
+	identity := &Identity{}
+	err = json.Unmarshal(decodedIdentity, &identity)
+	if err != nil {
+		return &User{}, err
+	}
+
+	if identity.User.Username == "" {
+		return &User{}, fmt.Errorf("x-rh-identity does not contain username")
+	}
+
+	user, err := findUserById(identity.User.Username)
+	if err != nil {
+		return &User{}, err
+	}
+
+	return user, nil
 }
 
 func authHandler(w http.ResponseWriter, r *http.Request) {
@@ -443,7 +483,7 @@ func entitlements(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userObj, err := getUser(w, r)
+	userObj, err := getUserFromIdentity(r)
 
 	if err != nil {
 		http.Error(w, fmt.Sprintf("couldn't auth user: %s", err.Error()), http.StatusForbidden)
