@@ -11,6 +11,11 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	keycloak "github.com/RedHatInsights/simple-kc-client"
+	"github.com/go-logr/logr"
+	"github.com/go-logr/zapr"
+	"go.uber.org/zap"
 )
 
 type User struct {
@@ -194,7 +199,7 @@ func getUser(w http.ResponseWriter, r *http.Request) (*User, error) {
 		return &User{}, fmt.Errorf("can't create keycloak client: %s", err.Error())
 	}
 
-	_, err = k.getGenericToken("redhat-external", username, password)
+	_, err = k.GetGenericToken("redhat-external", username, password)
 
 	if err != nil {
 		return &User{}, fmt.Errorf("couldn't auth user: %s", err.Error())
@@ -473,16 +478,27 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var k *KeyCloakClient
+var k *keycloak.KeyCloakClient
 
 func main() {
-	key, err := NewKeyCloakClient(KEYCLOAK_SERVER, KEYCLOAK_USERNAME, KEYCLOAK_PASSWORD, context.Background(), "master")
+	var log logr.Logger
+
+	zapLog, err := zap.NewDevelopment()
+	if err != nil {
+		panic(fmt.Sprintf("who watches the watchmen (%v)?", err))
+	}
+	log = zapr.NewLogger(zapLog)
+
+	key, err := keycloak.NewKeyCloakClient(KEYCLOAK_SERVER, KEYCLOAK_USERNAME, KEYCLOAK_PASSWORD, context.Background(), "master", log)
 
 	k = key
 
 	if err != nil {
-		log.Fatal("NOO - couldn't connect to keycloak")
+		log.Error(err, "reason", "couldn't connect")
 	}
 	http.HandleFunc("/", mainHandler)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+
+	if err = http.ListenAndServe(":8090", nil); err != nil {
+		log.Error(err, "reason", "server couldn't start")
+	}
 }
