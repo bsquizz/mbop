@@ -154,7 +154,7 @@ func findUsersBy(accountNo string, adminOnly string, status string, limit int, i
 }
 
 func jwtHandler(w http.ResponseWriter, r *http.Request) {
-	resp, err := http.Get(fmt.Sprintf("%s/auth/realms/redhat-external/", KEYCLOAK_SERVER))
+	resp, err := http.Get(fmt.Sprintf("%s/realms/redhat-external/", KEYCLOAK_SERVER))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
