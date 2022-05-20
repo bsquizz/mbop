@@ -41,28 +41,36 @@ The current list of supported paths is:
 
 ## How to run
 
+### pre-requisites
+
 You'll need a Keycloak Server running for the Keycloak-related requests to succed,
 and pass in the Server URL, Admin username and password using the `KEYCLOAK_SERVER`,
 `KEYCLOAK_USERNAME` and `KEYCLOAK_PASSWORD` environment variables respectively.
 
-The current supported version of Keycloak is: UNKNOWN (probably >= 17.1.0)
+The current supported version of Keycloak is: `15.0.2` , based on the
+[Keycloak version that Clowder uses](https://github.com/RedHatInsights/clowder/blob/983f993067b6ffbed85c7a7a85ee521019f19258/controllers/cloud.redhat.com/providers/web/impl.go#L23)
 
-### Locally
+You will also need a valid Keycloak realm named `redhat-external` as MBOP expects it to be
+pre-created. There's a [realm template](./data/redhat-external-realm.json) you can import to
+your Keycloak server to help you get started, it defines the redhat-external realm and a test
+user.
 
-## Keycloak
+### How to run Locally
 
-It is recommended if you simply spin a container with a Keycloak server:
+It is recommended if you simply spin a container with a Keycloak server that imports the demo-realm. 
 
+You can do it using rootless podman by running:
 
 ```shell
-# TODO: provide realm and users JSON export and instructions on how to auto-import
-
-podman run -it --name keycloak -p 8080:8080 -e KEYCLOAK_ADMIN_USER=admin -e KEYCLOAK_ADMIN_PASSWORD=change_me quay.io/keycloak/keycloak:17.0.1
+podman run -it --name keycloak -p 8080:8080 \
+    -e KEYCLOAK_ADMIN_USER=admin \
+    -e KEYCLOAK_ADMIN_PASSWORD=change_me \
+    -e KEYCLOAK_IMPORT=/opt/keycloak/data/import/redhat-external-realm.json \
+    -v ${PWD}/data/redhat-external-realm.json:/opt/keycloak/data/import/redhat-external-realm.json:z \
+    quay.io/keycloak/keycloak:15:0.2
 ```
 
-## BOP
-
-You can run this locally just by running:
+Then run MBOP, either building and running it locally:
 
 ```sh
 
@@ -71,12 +79,17 @@ $ go build
 $ KEYCLOAK_SERVER='http://localhost:8080' KEYCLOAK_USERNAME='admin' KEYCLOAK_PASSWORD='change_it' ./mbop
 ```
 
-You can also build the image container and run it locally with podman:
+Or you can also build the image container and run it locally with podman:
 
 ```
 podman build -t localhost/mbop:dev .
-
 podman run -it --rm --name mbop -p 8090:8090 -e KEYCLOAK_SERVER='http://localhost:8080' KEYCLOAK_USERNAME='admin' KEYCLOAK_PASSWORD='change_it'  localhost/mbop:dev
+```
+
+You can also leverage the provided `podman-compose.yaml` template and run it all together:
+
+```
+podman-compose -f podman_compose.yaml up -d --build
 ```
 
 ## How to test ?
