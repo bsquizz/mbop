@@ -120,8 +120,7 @@ func findUsersBy(accountNo string, orgId string, adminOnly string, status string
 				continue
 			}
 		}
-
-		if users != nil {
+		if users != nil && users.Users != nil {
 			found := false
 			for _, userCheck := range users.Users {
 				if queryBy == "userId" {
