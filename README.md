@@ -129,9 +129,3 @@ you can run Mocha tests with
 ```
 # npm --prefix test test
 ```
-
-To generate a test that produces coverage results use the "test-with-coverage" script.
-
-```
-$ npm test-with-coverage
-```
