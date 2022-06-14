@@ -94,8 +94,18 @@ podman-compose -f podman_compose.yaml up -d --build
 
 ## How to test ?
 
+
+### Unit tests
 Simply run
 
 ```
 go test
+```
+
+### E2E tests
+
+Having a local environment running with MBOP listening to `localhost:8090` , you can run Mocha tests with 
+
+```
+$ npm test
 ```
