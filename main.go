@@ -29,7 +29,7 @@ type User struct {
 	IsOrgAdmin    bool   `json:"is_org_admin"`
 	IsInternal    bool   `json:"is_internal"`
 	Locale        string `json:"locale"`
-	OrgID         int    `json:"org_id"`
+	OrgID         string `json:"org_id"`
 	DisplayName   string `json:"display_name"`
 	Type          string `json:"type"`
 	Entitlements  string `json:"entitlements"`
@@ -75,7 +75,7 @@ func findUserById(username string) (*User, error) {
 	return nil, fmt.Errorf("User is not known")
 }
 
-func findUsersBy(accountNo string, adminOnly string, status string, limit int, input *usersByInput, users *V1UserInput) ([]User, error) {
+func findUsersBy(accountNo string, orgId string, adminOnly string, status string, limit int, input *usersByInput, users *V1UserInput) ([]User, error) {
 	usersList, err := getUsers()
 
 	if err != nil {
@@ -103,6 +103,9 @@ func findUsersBy(accountNo string, adminOnly string, status string, limit int, i
 			}
 		}
 		if accountNo != "" && user.AccountNumber != accountNo {
+			continue
+		}
+		if orgId != "" && user.OrgID != orgId {
 			continue
 		}
 		if input != nil {
@@ -232,7 +235,7 @@ func usersV1(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		limit = 0
 	}
-	users, err := findUsersBy("", adminOnly, status, limit, nil, filt)
+	users, err := findUsersBy("", "", adminOnly, status, limit, nil, filt)
 
 	if err != nil {
 		http.Error(w, "could not get response", http.StatusInternalServerError)
@@ -291,8 +294,7 @@ func getUsers() (users []User, err error) {
 		IDRaw := user.Attributes["account_id"][0]
 		ID, _ := strconv.Atoi(IDRaw)
 
-		OrgIDRaw := user.Attributes["org_id"][0]
-		OrgID, _ := strconv.Atoi(OrgIDRaw)
+		OrgID := user.Attributes["org_id"][0]
 
 		var entitle string
 
@@ -336,7 +338,7 @@ func usersV1Handler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			limit = 0
 		}
-		users, err := findUsersBy(accountId, adminOnly, status, limit, nil, nil)
+		users, err := findUsersBy(accountId, "", adminOnly, status, limit, nil, nil)
 		if err != nil {
 			http.Error(w, "could not get response", http.StatusInternalServerError)
 			return
@@ -368,7 +370,7 @@ func usersV1Handler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			limit = 0
 		}
-		users, err := findUsersBy(accountId, adminOnly, status, limit, filt, nil)
+		users, err := findUsersBy(accountId, "", adminOnly, status, limit, filt, nil)
 		if err != nil {
 			http.Error(w, "could not get response", http.StatusInternalServerError)
 			return
@@ -382,16 +384,35 @@ func usersV1Handler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func usersV2Handler(w http.ResponseWriter, r *http.Request) {
+func usersV2V3Handler(w http.ResponseWriter, r *http.Request) {
 	urlParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
-	accountId := urlParts[2]
+	accountId := ""
+	orgId := ""
+	if urlParts[0] == "v2" {
+		accountId = urlParts[2]
+	} else {
+		orgId = urlParts[2]
+	}
 	adminOnly := r.URL.Query().Get("admin_only")
 	status := r.URL.Query().Get("status")
 	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
 	if err != nil {
 		limit = 0
 	}
-	users, err := findUsersBy(accountId, adminOnly, status, limit, nil, nil)
+
+	obj := &usersByInput{}
+	data, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return
+	}
+	if len(data) > 0 {
+		err = json.Unmarshal(data, obj)
+		if err != nil {
+			return
+		}
+	}
+
+	users, err := findUsersBy(accountId, orgId, adminOnly, status, limit, obj, nil)
 	if err != nil {
 		http.Error(w, "could not get response", http.StatusInternalServerError)
 		return
@@ -442,7 +463,9 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path[:12] == "/v1/accounts":
 		usersV1Handler(w, r)
 	case r.URL.Path[:12] == "/v2/accounts":
-		usersV2Handler(w, r)
+		usersV2V3Handler(w, r)
+	case r.URL.Path[:12] == "/v3/accounts":
+		usersV2V3Handler(w, r)
 	case r.URL.Path == "/api/entitlements/v1/services":
 		entitlements(w, r)
 	}
