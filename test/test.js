@@ -106,6 +106,18 @@ describe('/POST /v1/users',() => {
 /*
  * Test /v1/jwt
  */
+describe('/POST /v1/jwt',() => {
+    it.skip("should get the jwt auth token", (done) => {
+        chai.request(url)
+            .post('/v1/jwt')
+            .end((err,res) => {
+                res.should.have.status(200);
+                JSON_response = JSON.parse(res.text);
+                expect(JSON_response).not.be.empty;
+            done();
+        });
+    });
+});
 
 /*
  * Test /v1/auth
@@ -114,10 +126,44 @@ describe('/POST /v1/users',() => {
 /*
  * Test /v1/accounts
  */
+describe('/GET /v1/accounts',() => {
+    it('should return the users sorted by desc', (done) => {
+        chai.request(url)
+            .get('/v1/accounts/12345/users')
+            .end((err,res) => {
+                res.should.have.status(200);
+            done();
+        });
+    });
+});
 
 /*
  * Test /v2/accounts
  */
+describe('/GET /v2/accounts',() => {
+    it('should return the users sorted by desc', (done) => {
+        chai.request(url)
+            .get('/v2/accounts/12345/users')
+            .end((err,res) => {
+                res.should.have.status(200);
+            done();
+        });
+    });
+});
+
+/*
+ * Test /v3/accounts
+ */
+describe('/GET /v3/accounts',() => {
+    it('should return the users sorted by desc', (done) => {
+        chai.request(url)
+            .get('/v3/accounts/12345/users')
+            .end((err,res) => {
+                res.should.have.status(200);
+            done();
+        });
+    });
+});
 
 /*
  * Test /api/entitlements/v1/services
