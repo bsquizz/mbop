@@ -58,15 +58,14 @@
       "account_number" : [ "12345" ],
       "is_internal" : [ "false" ],
       "is_active" : [ "true" ],
-      "account_id" : [ "12345" ],
-      "org_id" : [ "12345" ],
+      "account_id" : [ "10000" ],
+      "org_id" : [ "54321" ],
       "newEntitlements" : [ "\"ansible\": {\"is_entitled\": true, \"is_trial\": false}", "\"cost_management\": {\"is_entitled\": true, \"is_trial\": false}", "\"insights\": {\"is_entitled\": true, \"is_trial\": false}", "\"advisor\": {\"is_entitled\": true, \"is_trial\": false}", "\"migrations\": {\"is_entitled\": true, \"is_trial\": false}", "\"openshift\": {\"is_entitled\": true, \"is_trial\": false}", "\"settings\": {\"is_entitled\": true, \"is_trial\": false}", "\"smart_management\": {\"is_entitled\": true, \"is_trial\": false}", "\"subscriptions\": {\"is_entitled\": true, \"is_trial\": false}", "\"user_preferences\": {\"is_entitled\": true, \"is_trial\": false}", "\"notifications\": {\"is_entitled\": true, \"is_trial\": false}", "\"integrations\": {\"is_entitled\": true, \"is_trial\": false}", "\"automation_analytics\": {\"is_entitled\": true, \"is_trial\": false}" ],
       "last_name" : [ "Doe" ],
       "first_name" : [ "John" ],
       "is_org_admin" : [ "true" ]
     },
     "credentials" : [ {
-      "id" : "f7901dbf-11fe-4a9b-8b30-4cd227e5bf74",
       "type" : "password",
       "value" : "BOO"
     } ],
@@ -75,7 +74,98 @@
     "realmRoles" : [ "default-roles-redhat-external" ],
     "notBefore" : 0,
     "groups" : [ ]
-  } ],
+  },
+  {
+    "username" : "guybrush",
+    "enabled" : true,
+    "totp" : false,
+    "emailVerified" : false,
+    "firstName" : "Guybrush",
+    "lastName" : "Threepwood",
+    "email" : "mightypirate@monkeyisland.com",
+    "attributes" : {
+      "entitlements" : [ "{\"insights\": {\"is_entitled\": true, \"is_trial\": false}}" ],
+      "account_number" : [ "12346" ],
+      "is_internal" : [ "false" ],
+      "is_active" : [ "true" ],
+      "account_id" : [ "10001" ],
+      "org_id" : [ "12399" ],
+      "newEntitlements" : [ "\"ansible\": {\"is_entitled\": true, \"is_trial\": false}", "\"cost_management\": {\"is_entitled\": true, \"is_trial\": false}", "\"insights\": {\"is_entitled\": true, \"is_trial\": false}", "\"advisor\": {\"is_entitled\": true, \"is_trial\": false}", "\"migrations\": {\"is_entitled\": true, \"is_trial\": false}", "\"openshift\": {\"is_entitled\": true, \"is_trial\": false}", "\"settings\": {\"is_entitled\": true, \"is_trial\": false}", "\"smart_management\": {\"is_entitled\": true, \"is_trial\": false}", "\"subscriptions\": {\"is_entitled\": true, \"is_trial\": false}", "\"user_preferences\": {\"is_entitled\": true, \"is_trial\": false}", "\"notifications\": {\"is_entitled\": true, \"is_trial\": false}", "\"integrations\": {\"is_entitled\": true, \"is_trial\": false}", "\"automation_analytics\": {\"is_entitled\": true, \"is_trial\": false}" ],
+      "last_name" : [ "Threepwood" ],
+      "first_name" : [ "Guybrush" ],
+      "is_org_admin" : [ "true" ]
+    },
+    "credentials" : [ {
+      "type" : "password",
+      "value" : "3H3ad3dM0nk3y"
+    } ],
+    "disableableCredentialTypes" : [ ],
+    "requiredActions" : [ ],
+    "realmRoles" : [ "default-roles-redhat-external" ],
+    "notBefore" : 0,
+    "groups" : [ ]
+  },
+  {
+    "username" : "lechuck",
+    "enabled" : true,
+    "totp" : false,
+    "emailVerified" : false,
+    "firstName" : "ZombiePirate",
+    "lastName" : "LeChuck",
+    "email" : "zombiepirate@example.com",
+    "attributes" : {
+      "entitlements" : [ "{\"insights\": {\"is_entitled\": true, \"is_trial\": false}}" ],
+      "account_number" : [ "12346" ],
+      "is_internal" : [ "false" ],
+      "is_active" : [ "true" ],
+      "account_id" : [ "10002" ],
+      "org_id" : [ "12399" ],
+      "newEntitlements" : [ "\"ansible\": {\"is_entitled\": true, \"is_trial\": false}", "\"cost_management\": {\"is_entitled\": true, \"is_trial\": false}", "\"insights\": {\"is_entitled\": true, \"is_trial\": false}", "\"advisor\": {\"is_entitled\": true, \"is_trial\": false}", "\"migrations\": {\"is_entitled\": true, \"is_trial\": false}", "\"openshift\": {\"is_entitled\": true, \"is_trial\": false}", "\"settings\": {\"is_entitled\": true, \"is_trial\": false}", "\"smart_management\": {\"is_entitled\": true, \"is_trial\": false}", "\"subscriptions\": {\"is_entitled\": true, \"is_trial\": false}", "\"user_preferences\": {\"is_entitled\": true, \"is_trial\": false}", "\"notifications\": {\"is_entitled\": true, \"is_trial\": false}", "\"integrations\": {\"is_entitled\": true, \"is_trial\": false}", "\"automation_analytics\": {\"is_entitled\": true, \"is_trial\": false}" ],
+      "last_name" : [ "LeChuck" ],
+      "first_name" : [ "ZombiePirate" ],
+      "is_org_admin" : [ "false" ]
+    },
+    "credentials" : [ {
+      "type" : "password",
+      "value" : "v00d00"
+    } ],
+    "disableableCredentialTypes" : [ ],
+    "requiredActions" : [ ],
+    "realmRoles" : [ "default-roles-redhat-external" ],
+    "notBefore" : 0,
+    "groups" : [ ]
+  },
+  {
+    "username" : "elaine",
+    "enabled" : true,
+    "totp" : false,
+    "emailVerified" : false,
+    "firstName" : "Elaine",
+    "lastName" : "Marley",
+    "email" : "governor@meleeisland.com",
+    "attributes" : {
+      "entitlements" : [ "{\"insights\": {\"is_entitled\": true, \"is_trial\": false}}" ],
+      "account_number" : [ "12346" ],
+      "is_internal" : [ "false" ],
+      "is_active" : [ "true" ],
+      "account_id" : [ "10003" ],
+      "org_id" : [ "12399" ],
+      "newEntitlements" : [ "\"ansible\": {\"is_entitled\": true, \"is_trial\": false}", "\"cost_management\": {\"is_entitled\": true, \"is_trial\": false}", "\"insights\": {\"is_entitled\": true, \"is_trial\": false}", "\"advisor\": {\"is_entitled\": true, \"is_trial\": false}", "\"migrations\": {\"is_entitled\": true, \"is_trial\": false}", "\"openshift\": {\"is_entitled\": true, \"is_trial\": false}", "\"settings\": {\"is_entitled\": true, \"is_trial\": false}", "\"smart_management\": {\"is_entitled\": true, \"is_trial\": false}", "\"subscriptions\": {\"is_entitled\": true, \"is_trial\": false}", "\"user_preferences\": {\"is_entitled\": true, \"is_trial\": false}", "\"notifications\": {\"is_entitled\": true, \"is_trial\": false}", "\"integrations\": {\"is_entitled\": true, \"is_trial\": false}", "\"automation_analytics\": {\"is_entitled\": true, \"is_trial\": false}" ],
+      "last_name" : [ "Marley" ],
+      "first_name" : [ "Elaine" ],
+      "is_org_admin" : [ "false" ]
+    },
+    "credentials" : [ {
+      "type" : "password",
+      "value" : "adv3ntur3"
+    } ],
+    "disableableCredentialTypes" : [ ],
+    "requiredActions" : [ ],
+    "realmRoles" : [ "default-roles-redhat-external" ],
+    "notBefore" : 0,
+    "groups" : [ ]
+  }
+  ],
   "roles" : {
     "realm" : [ {
       "id" : "2b6c8a21-0890-4620-b4e6-a08635fbda31",

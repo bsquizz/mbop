@@ -103,6 +103,23 @@ describe('/POST /v1/users',() => {
     });
 });
 
+
+describe('/POST /v1/users',() => {
+    it("should find users for multiple usernames for all of them that exist", (done) => {
+        chai.request(url)
+            .post('/v1/users')
+            .send({"users": ["jdoe", "foobar", "guybrush", "lechuck", "wally", "herman", "carla", "elaine"]})
+            .end((err,res) => {
+                res.should.have.status(200);
+                JSON_response = JSON.parse(res.text);
+                expect(JSON_response.length).eq(4);
+                names = JSON_response.map( x => x.username );
+                expect(names).deep.eq(["elaine", "guybrush", "jdoe", "lechuck"]);
+            done();
+        });
+    });
+});
+
 /*
  * Test /v1/jwt
  */
@@ -129,9 +146,13 @@ describe('/POST /v1/jwt',() => {
 describe('/GET /v1/accounts',() => {
     it('should return the users sorted by desc', (done) => {
         chai.request(url)
-            .get('/v1/accounts/12345/users')
+            .get('/v1/accounts/12346/users')
             .end((err,res) => {
                 res.should.have.status(200);
+                JSON_response = JSON.parse(res.text);
+                expect(JSON_response.length).eq(3);
+                names = JSON_response.map( x => x.username );
+                expect(names).deep.eq(["elaine", "guybrush", "lechuck"]);
             done();
         });
     });
@@ -143,9 +164,13 @@ describe('/GET /v1/accounts',() => {
 describe('/GET /v2/accounts',() => {
     it('should return the users sorted by desc', (done) => {
         chai.request(url)
-            .get('/v2/accounts/12345/users')
+            .get('/v2/accounts/12346/users')
             .end((err,res) => {
                 res.should.have.status(200);
+                JSON_response = JSON.parse(res.text);
+                expect(JSON_response.userCount).eq(3);
+                names = JSON_response.users.map( x => x.username );
+                expect(names).deep.eq(["elaine", "guybrush", "lechuck"]);
             done();
         });
     });
@@ -157,9 +182,13 @@ describe('/GET /v2/accounts',() => {
 describe('/GET /v3/accounts',() => {
     it('should return the users sorted by desc', (done) => {
         chai.request(url)
-            .get('/v3/accounts/12345/users')
+            .get('/v3/accounts/12399/users')
             .end((err,res) => {
                 res.should.have.status(200);
+                JSON_response = JSON.parse(res.text);
+                expect(JSON_response.userCount).eq(3);
+                names = JSON_response.users.map( x => x.username );
+                expect(names).deep.eq(["elaine", "guybrush", "lechuck"]);
             done();
         });
     });
