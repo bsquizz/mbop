@@ -76,7 +76,7 @@ func findUserById(username string) (*User, error) {
 	return nil, fmt.Errorf("User is not known")
 }
 
-func findUsersBy(accountNo string, orgId string, adminOnly string, status string, limit int, sortOrder string, input *usersByInput, users *V1UserInput) ([]User, error) {
+func findUsersBy(accountNo string, orgId string, adminOnly string, status string, limit int, sortOrder string, queryBy string, input *usersByInput, users *V1UserInput) ([]User, error) {
 	usersList, err := getUsers()
 
 	if err != nil {
@@ -120,11 +120,18 @@ func findUsersBy(accountNo string, orgId string, adminOnly string, status string
 				continue
 			}
 		}
+
 		if users != nil {
 			found := false
 			for _, userCheck := range users.Users {
-				if strings.EqualFold(userCheck, user.Username) {
-					found = true
+				if queryBy == "userId" {
+					if strings.EqualFold(userCheck, strconv.Itoa(user.ID)) {
+						found = true
+					}
+				} else {
+					if strings.EqualFold(userCheck, user.Username) {
+						found = true
+					}
 				}
 			}
 			if !found {
@@ -240,11 +247,12 @@ func usersV1(w http.ResponseWriter, r *http.Request) {
 	adminOnly := r.URL.Query().Get("admin_only")
 	status := r.URL.Query().Get("status")
 	sortOrder := r.URL.Query().Get("sortOrder")
+	queryBy := r.URL.Query().Get("queryBy")
 	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
 	if err != nil {
 		limit = 0
 	}
-	users, err := findUsersBy("", "", adminOnly, status, limit, sortOrder, nil, filt)
+	users, err := findUsersBy("", "", adminOnly, status, limit, sortOrder, queryBy, nil, filt)
 
 	if err != nil {
 		http.Error(w, "could not get response", http.StatusInternalServerError)
@@ -347,7 +355,7 @@ func usersV1Handler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			limit = 0
 		}
-		users, err := findUsersBy(accountId, "", adminOnly, status, limit, "", nil, nil)
+		users, err := findUsersBy(accountId, "", adminOnly, status, limit, "", "", nil, nil)
 		if err != nil {
 			http.Error(w, "could not get response", http.StatusInternalServerError)
 			return
@@ -379,7 +387,7 @@ func usersV1Handler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			limit = 0
 		}
-		users, err := findUsersBy(accountId, "", adminOnly, status, limit, "", filt, nil)
+		users, err := findUsersBy(accountId, "", adminOnly, status, limit, "", "", filt, nil)
 		if err != nil {
 			http.Error(w, "could not get response", http.StatusInternalServerError)
 			return
@@ -421,7 +429,7 @@ func usersV2V3Handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	users, err := findUsersBy(accountId, orgId, adminOnly, status, limit, "", obj, nil)
+	users, err := findUsersBy(accountId, orgId, adminOnly, status, limit, "", "", obj, nil)
 	if err != nil {
 		http.Error(w, "could not get response", http.StatusInternalServerError)
 		return
