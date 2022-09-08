@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -30,26 +30,10 @@ type User struct {
 	IsOrgAdmin    bool   `json:"is_org_admin"`
 	IsInternal    bool   `json:"is_internal"`
 	Locale        string `json:"locale"`
-	OrgID         int    `json:"org_id"`
+	OrgID         string `json:"org_id"`
 	DisplayName   string `json:"display_name"`
 	Type          string `json:"type"`
 	Entitlements  string `json:"entitlements"`
-}
-
-var KEYCLOAK_SERVER string
-var KEYCLOAK_USERNAME string
-var KEYCLOAK_PASSWORD string
-
-func init() {
-	KEYCLOAK_SERVER = os.Getenv("KEYCLOAK_SERVER")
-	KEYCLOAK_USERNAME = os.Getenv("KEYCLOAK_USERNAME")
-	KEYCLOAK_PASSWORD = os.Getenv("KEYCLOAK_PASSWORD")
-	if KEYCLOAK_USERNAME == "" {
-		KEYCLOAK_USERNAME = "admin"
-	}
-	if KEYCLOAK_PASSWORD == "" {
-		KEYCLOAK_PASSWORD = "admin"
-	}
 }
 
 type usersByInput struct {
@@ -92,7 +76,7 @@ func findUserById(username string) (*User, error) {
 	return nil, fmt.Errorf("User is not known")
 }
 
-func findUsersBy(accountNo string, adminOnly string, status string, limit int, input *usersByInput, users *V1UserInput) ([]User, error) {
+func findUsersBy(accountNo string, orgId string, adminOnly string, status string, limit int, sortOrder string, queryBy string, input *usersByInput, users *V1UserInput) ([]User, error) {
 	usersList, err := getUsers()
 
 	if err != nil {
@@ -122,6 +106,9 @@ func findUsersBy(accountNo string, adminOnly string, status string, limit int, i
 		if accountNo != "" && user.AccountNumber != accountNo {
 			continue
 		}
+		if orgId != "" && user.OrgID != orgId {
+			continue
+		}
 		if input != nil {
 			if input.PrimaryEmail != "" && user.Email != input.PrimaryEmail {
 				continue
@@ -133,11 +120,18 @@ func findUsersBy(accountNo string, adminOnly string, status string, limit int, i
 				continue
 			}
 		}
+
 		if users != nil {
 			found := false
 			for _, userCheck := range users.Users {
-				if userCheck == user.Username {
-					found = true
+				if queryBy == "userId" {
+					if strings.EqualFold(userCheck, strconv.Itoa(user.ID)) {
+						found = true
+					}
+				} else {
+					if strings.EqualFold(userCheck, user.Username) {
+						found = true
+					}
 				}
 			}
 			if !found {
@@ -150,30 +144,24 @@ func findUsersBy(accountNo string, adminOnly string, status string, limit int, i
 			break
 		}
 	}
+
+	if sortOrder == "des" {
+		sort.Slice(out, func(i, j int) bool {
+			return strings.Compare(out[i].Username, out[j].Username) == 1
+		})
+	}
+
 	return out, nil
 }
 
 func jwtHandler(w http.ResponseWriter, r *http.Request) {
-	resp, err := http.Get(fmt.Sprintf("%s/auth/realms/redhat-external/", KEYCLOAK_SERVER))
+	resp, err := k.GetJWT("redhat-external")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
 
-	realm := &Realm{}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	err = json.Unmarshal(body, &realm)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	fmt.Fprintf(w, realm.PublicKey)
+	fmt.Fprintf(w, resp.PublicKey)
 }
 
 func getUser(w http.ResponseWriter, r *http.Request) (*User, error) {
@@ -258,11 +246,13 @@ func usersV1(w http.ResponseWriter, r *http.Request) {
 	}
 	adminOnly := r.URL.Query().Get("admin_only")
 	status := r.URL.Query().Get("status")
+	sortOrder := r.URL.Query().Get("sortOrder")
+	queryBy := r.URL.Query().Get("queryBy")
 	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
 	if err != nil {
 		limit = 0
 	}
-	users, err := findUsersBy("", adminOnly, status, limit, nil, filt)
+	users, err := findUsersBy("", "", adminOnly, status, limit, sortOrder, queryBy, nil, filt)
 
 	if err != nil {
 		http.Error(w, "could not get response", http.StatusInternalServerError)
@@ -288,7 +278,7 @@ type usersSpec struct {
 }
 
 func getUsers() (users []User, err error) {
-	resp, err := k.Get("/auth/admin/realms/redhat-external/users?max=2000", "", map[string]string{})
+	resp, err := k.Get("/admin/realms/redhat-external/users?max=2000", "", map[string]string{})
 	if err != nil {
 		fmt.Printf("\n\n%s\n\n", err.Error())
 	}
@@ -321,8 +311,7 @@ func getUsers() (users []User, err error) {
 		IDRaw := user.Attributes["account_id"][0]
 		ID, _ := strconv.Atoi(IDRaw)
 
-		OrgIDRaw := user.Attributes["org_id"][0]
-		OrgID, _ := strconv.Atoi(OrgIDRaw)
+		OrgID := user.Attributes["org_id"][0]
 
 		var entitle string
 
@@ -366,7 +355,7 @@ func usersV1Handler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			limit = 0
 		}
-		users, err := findUsersBy(accountId, adminOnly, status, limit, nil, nil)
+		users, err := findUsersBy(accountId, "", adminOnly, status, limit, "", "", nil, nil)
 		if err != nil {
 			http.Error(w, "could not get response", http.StatusInternalServerError)
 			return
@@ -398,7 +387,7 @@ func usersV1Handler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			limit = 0
 		}
-		users, err := findUsersBy(accountId, adminOnly, status, limit, filt, nil)
+		users, err := findUsersBy(accountId, "", adminOnly, status, limit, "", "", filt, nil)
 		if err != nil {
 			http.Error(w, "could not get response", http.StatusInternalServerError)
 			return
@@ -412,16 +401,35 @@ func usersV1Handler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func usersV2Handler(w http.ResponseWriter, r *http.Request) {
+func usersV2V3Handler(w http.ResponseWriter, r *http.Request) {
 	urlParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
-	accountId := urlParts[2]
+	accountId := ""
+	orgId := ""
+	if urlParts[0] == "v2" {
+		accountId = urlParts[2]
+	} else {
+		orgId = urlParts[2]
+	}
 	adminOnly := r.URL.Query().Get("admin_only")
 	status := r.URL.Query().Get("status")
 	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
 	if err != nil {
 		limit = 0
 	}
-	users, err := findUsersBy(accountId, adminOnly, status, limit, nil, nil)
+
+	obj := &usersByInput{}
+	data, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return
+	}
+	if len(data) > 0 {
+		err = json.Unmarshal(data, obj)
+		if err != nil {
+			return
+		}
+	}
+
+	users, err := findUsersBy(accountId, orgId, adminOnly, status, limit, "", "", obj, nil)
 	if err != nil {
 		http.Error(w, "could not get response", http.StatusInternalServerError)
 		return
@@ -459,7 +467,7 @@ func entitlements(w http.ResponseWriter, r *http.Request) {
 }
 
 func mainHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("%s %s %s\n", r.RemoteAddr, r.Method, r.URL)
+	log.Info(fmt.Sprintf("%s %s %s\n", r.RemoteAddr, r.Method, r.URL))
 	switch {
 	case r.URL.Path == "/":
 		statusHandler(w, r)
@@ -472,16 +480,32 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path[:12] == "/v1/accounts":
 		usersV1Handler(w, r)
 	case r.URL.Path[:12] == "/v2/accounts":
-		usersV2Handler(w, r)
+		usersV2V3Handler(w, r)
+	case r.URL.Path[:12] == "/v3/accounts":
+		usersV2V3Handler(w, r)
 	case r.URL.Path == "/api/entitlements/v1/services":
 		entitlements(w, r)
 	}
 }
 
 var k *keycloak.KeyCloakClient
+var log logr.Logger
 
-func main() {
-	var log logr.Logger
+func getMux() *http.ServeMux {
+
+	KEYCLOAK_SERVER := os.Getenv("KEYCLOAK_SERVER")
+	KEYCLOAK_USERNAME := os.Getenv("KEYCLOAK_USERNAME")
+	KEYCLOAK_PASSWORD := os.Getenv("KEYCLOAK_PASSWORD")
+	KEYCLOAK_VERSION := os.Getenv("KEYCLOAK_VERSION")
+	if KEYCLOAK_USERNAME == "" {
+		KEYCLOAK_USERNAME = "admin"
+	}
+	if KEYCLOAK_PASSWORD == "" {
+		KEYCLOAK_PASSWORD = "admin"
+	}
+	if KEYCLOAK_VERSION == "" {
+		KEYCLOAK_VERSION = "11.0.0"
+	}
 
 	zapLog, err := zap.NewDevelopment()
 	if err != nil {
@@ -489,16 +513,21 @@ func main() {
 	}
 	log = zapr.NewLogger(zapLog)
 
-	key, err := keycloak.NewKeyCloakClient(KEYCLOAK_SERVER, KEYCLOAK_USERNAME, KEYCLOAK_PASSWORD, context.Background(), "master", log)
+	key, err := keycloak.NewKeyCloakClient(KEYCLOAK_SERVER, KEYCLOAK_USERNAME, KEYCLOAK_PASSWORD, context.Background(), "master", log, KEYCLOAK_VERSION)
+
+	if err != nil {
+		panic(err)
+	}
 
 	k = key
 
-	if err != nil {
-		log.Error(err, "reason", "couldn't connect")
-	}
-	http.HandleFunc("/", mainHandler)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", mainHandler)
+	return mux
+}
 
-	if err = http.ListenAndServe(":8090", nil); err != nil {
+func main() {
+	if err := http.ListenAndServe(":8090", getMux()); err != nil {
 		log.Error(err, "reason", "server couldn't start")
 	}
 }
