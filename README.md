@@ -109,3 +109,9 @@ Having a local environment running with MBOP listening to `localhost:8090` , you
 ```
 $ npm test
 ```
+
+To generate a test that produces coverage results use the "test-with-coverage" script.
+
+```
+$ npm test-with-coverage
+```
