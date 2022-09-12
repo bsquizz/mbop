@@ -7,11 +7,18 @@
   },
   "scripts": {
     "test": "mocha",
+    "test-with-coverage": "nyc mocha",
     "start-all": "podman-compose -f podman_compose.yaml up -d --build",
     "start": "podman-compose -f podman_compose.yaml up -d --build mbop",
     "stop-all": "podman-compose -f podman_compose.yaml down",
     "stop": "podman-compose -f podman_compose.yaml down mbop",
     "restart-all": "podman-compose -f podman_compose.yaml down && podman-compose -f podman_compose.yaml up -d --build",
     "restart": "podman-compose -f podman_compose.yaml down mbop && podman-compose -f podman_compose.yaml up -d --build mbop"
+  },
+  "dependencies": {
+    "nyc": "^15.1.0"
+  },
+  "nyc": {
+    "exclude": []
   }
 }
