@@ -95,6 +95,20 @@ describe('/POST /v1/users',() => {
 
 
 describe('/POST /v1/users',() => {
+    it.skip("should find users even without any parameter", (done) => {
+        chai.request(url)
+            .post('/v1/users')
+            .end((err,res) => {
+                res.should.have.status(200);
+                JSON_response = JSON.parse(res.text);
+                expect(JSON_response).not.be.empty;
+            done();
+        });
+    });
+});
+
+
+describe('/POST /v1/users',() => {
     it("should find users for multiple usernames for all of them that exist", (done) => {
         chai.request(url)
             .post('/v1/users')
