@@ -7,15 +7,16 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 
-	keycloak "github.com/RedHatInsights/simple-kc-client"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"go.uber.org/zap"
+	"golang.org/x/oauth2/clientcredentials"
 )
 
 type User struct {
@@ -34,6 +35,13 @@ type User struct {
 	DisplayName   string `json:"display_name"`
 	Type          string `json:"type"`
 	Entitlements  string `json:"entitlements"`
+}
+
+type JSONStruct struct {
+	PublicKey       string `json:"public_key"`
+	TokenService    string `json:"token-service"`
+	AccountService  string `json:"account-service"`
+	TokensNotBefore int    `json:"tokens-not-before"`
 }
 
 type usersByInput struct {
@@ -61,8 +69,8 @@ type V1UserInput struct {
 	Users []string `json:"users"`
 }
 
-func findUserById(username string) (*User, error) {
-	users, err := getUsers()
+func (m *MBOPServer) findUserById(username string) (*User, error) {
+	users, err := m.getUsers()
 
 	if err != nil {
 		return nil, err
@@ -76,8 +84,8 @@ func findUserById(username string) (*User, error) {
 	return nil, fmt.Errorf("User is not known")
 }
 
-func findUsersBy(accountNo string, orgId string, adminOnly string, status string, limit int, sortOrder string, queryBy string, input *usersByInput, users *V1UserInput) ([]User, error) {
-	usersList, err := getUsers()
+func (m *MBOPServer) findUsersBy(accountNo string, orgId string, adminOnly string, status string, limit int, sortOrder string, queryBy string, input *usersByInput, users *V1UserInput) ([]User, error) {
+	usersList, err := m.getUsers()
 
 	if err != nil {
 		return nil, err
@@ -153,8 +161,8 @@ func findUsersBy(accountNo string, orgId string, adminOnly string, status string
 	return out, nil
 }
 
-func jwtHandler(w http.ResponseWriter, r *http.Request) {
-	resp, err := k.GetJWT("redhat-external")
+func (m *MBOPServer) jwtHandler(w http.ResponseWriter, r *http.Request) {
+	resp, err := m.getJWT("redhat-external")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
@@ -163,7 +171,28 @@ func jwtHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, resp.PublicKey)
 }
 
-func getUser(w http.ResponseWriter, r *http.Request) (*User, error) {
+func (m *MBOPServer) getJWT(realm string) (*JSONStruct, error) {
+	resp, err := http.Get(fmt.Sprintf("%s/auth/realms/%s/", m.server, realm))
+
+	if err != nil {
+		return nil, err
+	}
+
+	bdata, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonstruct := &JSONStruct{}
+	err = json.Unmarshal(bdata, jsonstruct)
+	if err != nil {
+		return nil, err
+	}
+
+	return jsonstruct, nil
+}
+
+func (m *MBOPServer) getUser(w http.ResponseWriter, r *http.Request) (*User, error) {
 	auth := r.Header.Get("Authorization")
 	if auth == "" {
 		return &User{}, fmt.Errorf("no auth header found")
@@ -186,13 +215,25 @@ func getUser(w http.ResponseWriter, r *http.Request) (*User, error) {
 		return &User{}, fmt.Errorf("can't create keycloak client: %s", err.Error())
 	}
 
-	_, err = k.GetGenericToken("redhat-external", username, password)
+	oauthClientConfig := clientcredentials.Config{
+		ClientID:       "admin-cli",
+		ClientSecret:   "",
+		TokenURL:       KEYCLOAK_SERVER + "auth/realms/redhat-external/protocol/openid-connect/token",
+		EndpointParams: url.Values{"grant_type": {"password"}, "username": {username}, "password": {password}},
+	}
+
+	k := oauthClientConfig.Client(context.Background())
+	resp, err := k.Get(fmt.Sprintf("%sauth/realms/redhat-external/account/", KEYCLOAK_SERVER))
 
 	if err != nil {
 		return &User{}, fmt.Errorf("couldn't auth user: %s", err.Error())
 	}
 
-	userObj, err := findUserById(username)
+	if resp.StatusCode != 200 {
+		return &User{}, fmt.Errorf("user unauthorized: %d", resp.StatusCode)
+	}
+
+	userObj, err := m.findUserById(username)
 
 	if err != nil {
 		return &User{}, fmt.Errorf("couldn't find user: %s", err.Error())
@@ -200,9 +241,9 @@ func getUser(w http.ResponseWriter, r *http.Request) (*User, error) {
 	return userObj, nil
 }
 
-func authHandler(w http.ResponseWriter, r *http.Request) {
+func (m *MBOPServer) authHandler(w http.ResponseWriter, r *http.Request) {
 
-	userObj, err := getUser(w, r)
+	userObj, err := m.getUser(w, r)
 
 	if err != nil {
 		http.Error(w, fmt.Sprintf("couldn't auth user: %s", err.Error()), http.StatusForbidden)
@@ -225,7 +266,7 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 func statusHandler(w http.ResponseWriter, r *http.Request) {
 }
 
-func usersV1(w http.ResponseWriter, r *http.Request) {
+func (m *MBOPServer) usersV1(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -251,7 +292,7 @@ func usersV1(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		limit = 0
 	}
-	users, err := findUsersBy("", "", adminOnly, status, limit, sortOrder, queryBy, nil, filt)
+	users, err := m.findUsersBy("", "", adminOnly, status, limit, sortOrder, queryBy, nil, filt)
 
 	if err != nil {
 		http.Error(w, "could not get response", http.StatusInternalServerError)
@@ -276,8 +317,8 @@ type usersSpec struct {
 	Attributes map[string][]string `json:"attributes"`
 }
 
-func getUsers() (users []User, err error) {
-	resp, err := k.Get("/admin/realms/redhat-external/users?max=2000", "", map[string]string{})
+func (m *MBOPServer) getUsers() (users []User, err error) {
+	resp, err := m.Client.Get(fmt.Sprintf("%sauth/admin/realms/redhat-external/users?max=2000", KEYCLOAK_SERVER))
 	if err != nil {
 		fmt.Printf("\n\n%s\n\n", err.Error())
 	}
@@ -343,7 +384,7 @@ func getUsers() (users []User, err error) {
 	return users, nil
 }
 
-func usersV1Handler(w http.ResponseWriter, r *http.Request) {
+func (m *MBOPServer) usersV1Handler(w http.ResponseWriter, r *http.Request) {
 	urlParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
 	accountId := urlParts[2]
 	switch {
@@ -354,7 +395,8 @@ func usersV1Handler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			limit = 0
 		}
-		users, err := findUsersBy(accountId, "", adminOnly, status, limit, "", "", nil, nil)
+
+		users, err := m.findUsersBy(accountId, "", adminOnly, status, limit, "", "", nil, nil)
 		if err != nil {
 			http.Error(w, "could not get response", http.StatusInternalServerError)
 			return
@@ -386,11 +428,13 @@ func usersV1Handler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			limit = 0
 		}
-		users, err := findUsersBy(accountId, "", adminOnly, status, limit, "", "", filt, nil)
+
+		users, err := m.findUsersBy(accountId, "", adminOnly, status, limit, "", "", filt, nil)
 		if err != nil {
 			http.Error(w, "could not get response", http.StatusInternalServerError)
 			return
 		}
+
 		str, err := json.Marshal(users)
 		if err != nil {
 			http.Error(w, "could not create response", http.StatusInternalServerError)
@@ -400,7 +444,7 @@ func usersV1Handler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func usersV2V3Handler(w http.ResponseWriter, r *http.Request) {
+func (m *MBOPServer) usersV2V3Handler(w http.ResponseWriter, r *http.Request) {
 	urlParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
 	accountId := ""
 	orgId := ""
@@ -428,7 +472,8 @@ func usersV2V3Handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	users, err := findUsersBy(accountId, orgId, adminOnly, status, limit, "", "", obj, nil)
+	users, err := m.findUsersBy(accountId, orgId, adminOnly, status, limit, "", "", obj, nil)
+
 	if err != nil {
 		http.Error(w, "could not get response", http.StatusInternalServerError)
 		return
@@ -446,7 +491,7 @@ func usersV2V3Handler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, string(str))
 }
 
-func entitlements(w http.ResponseWriter, r *http.Request) {
+func (m *MBOPServer) entitlements(w http.ResponseWriter, r *http.Request) {
 	ALL_PASS := os.Getenv("ALL_PASS")
 
 	if ALL_PASS != "" {
@@ -455,7 +500,7 @@ func entitlements(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userObj, err := getUser(w, r)
+	userObj, err := m.getUser(w, r)
 
 	if err != nil {
 		http.Error(w, fmt.Sprintf("couldn't auth user: %s", err.Error()), http.StatusForbidden)
@@ -465,68 +510,95 @@ func entitlements(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, string(userObj.Entitlements))
 }
 
-func mainHandler(w http.ResponseWriter, r *http.Request) {
+func (m *MBOPServer) mainHandler(w http.ResponseWriter, r *http.Request) {
 	log.Info(fmt.Sprintf("%s %s %s\n", r.RemoteAddr, r.Method, r.URL))
 	switch {
 	case r.URL.Path == "/":
 		statusHandler(w, r)
 	case r.URL.Path == "/v1/users":
-		usersV1(w, r)
+		m.usersV1(w, r)
 	case r.URL.Path == "/v1/jwt":
-		jwtHandler(w, r)
+		m.jwtHandler(w, r)
 	case r.URL.Path == "/v1/auth":
-		authHandler(w, r)
+		m.authHandler(w, r)
 	case r.URL.Path[:12] == "/v1/accounts":
-		usersV1Handler(w, r)
+		m.usersV1Handler(w, r)
 	case r.URL.Path[:12] == "/v2/accounts":
-		usersV2V3Handler(w, r)
+		m.usersV2V3Handler(w, r)
 	case r.URL.Path[:12] == "/v3/accounts":
-		usersV2V3Handler(w, r)
+		m.usersV2V3Handler(w, r)
 	case r.URL.Path == "/api/entitlements/v1/services":
-		entitlements(w, r)
+		m.entitlements(w, r)
 	}
 }
 
-var k *keycloak.KeyCloakClient
 var log logr.Logger
 
-func getMux() *http.ServeMux {
-
-	KEYCLOAK_SERVER := os.Getenv("KEYCLOAK_SERVER")
-	KEYCLOAK_USERNAME := os.Getenv("KEYCLOAK_USERNAME")
-	KEYCLOAK_PASSWORD := os.Getenv("KEYCLOAK_PASSWORD")
-	KEYCLOAK_VERSION := os.Getenv("KEYCLOAK_VERSION")
-	if KEYCLOAK_USERNAME == "" {
-		KEYCLOAK_USERNAME = "admin"
-	}
-	if KEYCLOAK_PASSWORD == "" {
-		KEYCLOAK_PASSWORD = "admin"
-	}
-	if KEYCLOAK_VERSION == "" {
-		KEYCLOAK_VERSION = "11.0.0"
-	}
-
+func (m *MBOPServer) getMux() *http.ServeMux {
 	zapLog, err := zap.NewDevelopment()
 	if err != nil {
 		panic(fmt.Sprintf("who watches the watchmen (%v)?", err))
 	}
 	log = zapr.NewLogger(zapLog)
 
-	key, err := keycloak.NewKeyCloakClient(KEYCLOAK_SERVER, KEYCLOAK_USERNAME, KEYCLOAK_PASSWORD, context.Background(), "master", log, KEYCLOAK_VERSION)
-
-	if err != nil {
-		panic(err)
+	oauthClientConfig := clientcredentials.Config{
+		ClientID:       "admin-cli",
+		ClientSecret:   "",
+		TokenURL:       KEYCLOAK_SERVER + "auth/realms/master/protocol/openid-connect/token",
+		EndpointParams: url.Values{"grant_type": {"password"}, "username": {KEYCLOAK_USERNAME}, "password": {KEYCLOAK_PASSWORD}},
 	}
 
-	k = key
+	m.Client = oauthClientConfig.Client(context.Background())
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", mainHandler)
+	mux.HandleFunc("/", m.mainHandler)
 	return mux
 }
 
+var KEYCLOAK_PASSWORD string
+var KEYCLOAK_USERNAME string
+var KEYCLOAK_SERVER string
+
+func init() {
+	KEYCLOAK_SERVER = os.Getenv("KEYCLOAK_SERVER")
+	KEYCLOAK_USERNAME = os.Getenv("KEYCLOAK_USERNAME")
+	KEYCLOAK_PASSWORD = os.Getenv("KEYCLOAK_PASSWORD")
+	if KEYCLOAK_USERNAME == "" {
+		KEYCLOAK_USERNAME = "admin"
+	}
+	if KEYCLOAK_PASSWORD == "" {
+		KEYCLOAK_PASSWORD = "admin"
+	}
+}
+
+type MBOPServer struct {
+	server   string
+	username string
+	password string
+	Client   *http.Client
+}
+
+func MakeNewMBOPServer() *MBOPServer {
+	KEYCLOAK_USERNAME = os.Getenv("KEYCLOAK_USERNAME")
+	KEYCLOAK_PASSWORD = os.Getenv("KEYCLOAK_PASSWORD")
+	if KEYCLOAK_USERNAME == "" {
+		KEYCLOAK_USERNAME = "admin"
+	}
+	if KEYCLOAK_PASSWORD == "" {
+		KEYCLOAK_PASSWORD = "admin"
+	}
+
+	return &MBOPServer{
+		server:   os.Getenv("KEYCLOAK_SERVER"),
+		username: KEYCLOAK_USERNAME,
+		password: KEYCLOAK_PASSWORD,
+	}
+}
+
 func main() {
-	if err := http.ListenAndServe(":8090", getMux()); err != nil {
+	mbServer := MakeNewMBOPServer()
+
+	if err := http.ListenAndServe(":8090", mbServer.getMux()); err != nil {
 		log.Error(err, "reason", "server couldn't start")
 	}
 }
