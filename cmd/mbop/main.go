@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -219,12 +218,12 @@ func (m *MBOPServer) getUser(w http.ResponseWriter, r *http.Request) (*User, err
 	oauthClientConfig := clientcredentials.Config{
 		ClientID:       "admin-cli",
 		ClientSecret:   "",
-		TokenURL:       path.Join(m.server.String(), "auth/realms/redhat-external/protocol/openid-connect/token"),
+		TokenURL:       m.getUrl("auth/realms/redhat-external/protocol/openid-connect/token"),
 		EndpointParams: url.Values{"grant_type": {"password"}, "username": {username}, "password": {password}},
 	}
 
 	k := oauthClientConfig.Client(context.Background())
-	resp, err := k.Get(path.Join(m.server.String(), "auth/realms/redhat-external/account/"))
+	resp, err := k.Get(m.getUrl("auth/realms/redhat-external/account/"))
 
 	if err != nil {
 		return &User{}, fmt.Errorf("couldn't auth user: %s", err.Error())
@@ -319,7 +318,7 @@ type usersSpec struct {
 }
 
 func (m *MBOPServer) getUsers() (users []User, err error) {
-	resp, err := m.Client.Get(path.Join(m.server.String(), "auth/admin/realms/redhat-external/users?max=2000"))
+	resp, err := m.Client.Get(m.getUrl("auth/admin/realms/redhat-external/users?max=2000"))
 	if err != nil {
 		fmt.Printf("\n\n%s\n\n", err.Error())
 	}
@@ -535,6 +534,15 @@ func (m *MBOPServer) mainHandler(w http.ResponseWriter, r *http.Request) {
 
 var log logr.Logger
 
+func (m *MBOPServer) getUrl(path string) string {
+	url := url.URL{
+		Scheme: m.server.Scheme,
+		Host:   m.server.Host,
+		Path:   "auth/realms/master/protocol/openid-connect/token",
+	}
+	return url.String()
+}
+
 func (m *MBOPServer) getMux() *http.ServeMux {
 	zapLog, err := zap.NewDevelopment()
 	if err != nil {
@@ -545,7 +553,7 @@ func (m *MBOPServer) getMux() *http.ServeMux {
 	oauthClientConfig := clientcredentials.Config{
 		ClientID:       "admin-cli",
 		ClientSecret:   "",
-		TokenURL:       path.Join(m.server.String(), "auth/realms/master/protocol/openid-connect/token"),
+		TokenURL:       m.getUrl("auth/realms/master/protocol/openid-connect/token"),
 		EndpointParams: url.Values{"grant_type": {"password"}, "username": {m.username}, "password": {m.password}},
 	}
 
