@@ -43,6 +43,12 @@ func (suite *TestSuite) TestJWTGet() {
 	assert.Equal(suite.T(), 200, resp.StatusCode, "status code not good")
 }
 
+func (suite *TestSuite) TestGetUrl() {
+	os.Setenv("KEYCLOAK_SERVER", "http://test")
+	path := MakeNewMBOPServer().getUrl("path", map[string]string{"hi": "you"})
+	assert.Equal(suite.T(), "http://test/path?hi=you", path, "did not match")
+}
+
 func (suite *TestSuite) TearDownSuite() {
 }
 
