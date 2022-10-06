@@ -172,7 +172,7 @@ func (m *MBOPServer) jwtHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *MBOPServer) getJWT(realm string) (*JSONStruct, error) {
-	resp, err := http.Get(m.getUrl(fmt.Sprintf("auth/realms/%s/", realm), nil))
+	resp, err := http.Get(m.getUrl(fmt.Sprintf("auth/realms/%s/", realm)))
 
 	if err != nil {
 		return nil, err
@@ -218,12 +218,12 @@ func (m *MBOPServer) getUser(w http.ResponseWriter, r *http.Request) (*User, err
 	oauthClientConfig := clientcredentials.Config{
 		ClientID:       "admin-cli",
 		ClientSecret:   "",
-		TokenURL:       m.getUrl("auth/realms/redhat-external/protocol/openid-connect/token", nil),
+		TokenURL:       m.getUrl("auth/realms/redhat-external/protocol/openid-connect/token"),
 		EndpointParams: url.Values{"grant_type": {"password"}, "username": {username}, "password": {password}},
 	}
 
 	k := oauthClientConfig.Client(context.Background())
-	resp, err := k.Get(m.getUrl("auth/realms/redhat-external/account/", nil))
+	resp, err := k.Get(m.getUrl("auth/realms/redhat-external/account/"))
 
 	if err != nil {
 		return &User{}, fmt.Errorf("couldn't auth user: %s", err.Error())
@@ -534,15 +534,17 @@ func (m *MBOPServer) mainHandler(w http.ResponseWriter, r *http.Request) {
 
 var log logr.Logger
 
-func (m *MBOPServer) getUrl(path string, query map[string]string) string {
+func (m *MBOPServer) getUrl(path string, query ...map[string]string) string {
 	url := url.URL{
 		Scheme: m.server.Scheme,
 		Host:   m.server.Host,
 		Path:   path,
 	}
 	q := url.Query()
-	for k, v := range query {
-		q.Set(k, v)
+	for _, o := range query {
+		for k, v := range o {
+			q.Set(k, v)
+		}
 	}
 	url.RawQuery = q.Encode()
 	return url.String()
@@ -558,7 +560,7 @@ func (m *MBOPServer) getMux() *http.ServeMux {
 	oauthClientConfig := clientcredentials.Config{
 		ClientID:       "admin-cli",
 		ClientSecret:   "",
-		TokenURL:       m.getUrl("auth/realms/master/protocol/openid-connect/token", nil),
+		TokenURL:       m.getUrl("auth/realms/master/protocol/openid-connect/token"),
 		EndpointParams: url.Values{"grant_type": {"password"}, "username": {m.username}, "password": {m.password}},
 	}
 
