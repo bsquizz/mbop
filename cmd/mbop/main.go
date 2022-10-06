@@ -319,7 +319,7 @@ type usersSpec struct {
 }
 
 func (m *MBOPServer) getUsers() (users []User, err error) {
-	resp, err := m.Client.Get(path.Join(m.server.String(), "/auth/admin/realms/redhat-external/users?max=2000"))
+	resp, err := m.Client.Get(path.Join(m.server.String(), "auth/admin/realms/redhat-external/users?max=2000"))
 	if err != nil {
 		fmt.Printf("\n\n%s\n\n", err.Error())
 	}
@@ -545,7 +545,7 @@ func (m *MBOPServer) getMux() *http.ServeMux {
 	oauthClientConfig := clientcredentials.Config{
 		ClientID:       "admin-cli",
 		ClientSecret:   "",
-		TokenURL:       path.Join(m.server.String(), "/auth/realms/master/protocol/openid-connect/token"),
+		TokenURL:       path.Join(m.server.String(), "auth/realms/master/protocol/openid-connect/token"),
 		EndpointParams: url.Values{"grant_type": {"password"}, "username": {m.username}, "password": {m.password}},
 	}
 
