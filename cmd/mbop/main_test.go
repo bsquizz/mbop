@@ -21,7 +21,7 @@ func (suite *TestSuite) SetupSuite() {
 func (suite *TestSuite) TestJWTGet() {
 	testData, _ := os.ReadFile("testdata/jwt.json")
 	k8sServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/realms/redhat-external/" {
+		if r.URL.Path == "/auth/realms/redhat-external/" {
 			w.WriteHeader(http.StatusOK)
 			w.Write(testData)
 		} else {
@@ -31,15 +31,22 @@ func (suite *TestSuite) TestJWTGet() {
 	defer k8sServer.Close()
 
 	os.Setenv("KEYCLOAK_SERVER", k8sServer.URL)
-	os.Setenv("KEYCLOAK_VERSION", "17.0.0")
 
-	sut := httptest.NewServer(getMux())
+	mbopServer := MakeNewMBOPServer()
+
+	sut := httptest.NewServer(mbopServer.getMux())
 	defer sut.Close()
 
 	resp, err := http.Get(fmt.Sprintf("%s/v1/jwt", sut.URL))
 
 	assert.Nil(suite.T(), err, "error was not nil")
 	assert.Equal(suite.T(), 200, resp.StatusCode, "status code not good")
+}
+
+func (suite *TestSuite) TestGetUrl() {
+	os.Setenv("KEYCLOAK_SERVER", "http://test")
+	path := MakeNewMBOPServer().getUrl("path", map[string]string{"hi": "you"})
+	assert.Equal(suite.T(), "http://test/path?hi=you", path, "did not match")
 }
 
 func (suite *TestSuite) TearDownSuite() {
