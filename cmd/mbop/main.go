@@ -172,7 +172,7 @@ func (m *MBOPServer) jwtHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *MBOPServer) getJWT(realm string) (*JSONStruct, error) {
-	resp, err := http.Get(fmt.Sprintf("%s/auth/realms/%s/", m.server, realm))
+	resp, err := http.Get(m.getUrl(fmt.Sprintf("auth/realms/%s/", realm)))
 
 	if err != nil {
 		return nil, err
@@ -538,7 +538,7 @@ func (m *MBOPServer) getUrl(path string) string {
 	url := url.URL{
 		Scheme: m.server.Scheme,
 		Host:   m.server.Host,
-		Path:   "auth/realms/master/protocol/openid-connect/token",
+		Path:   path,
 	}
 	return url.String()
 }
