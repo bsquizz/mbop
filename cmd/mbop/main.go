@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -218,12 +219,12 @@ func (m *MBOPServer) getUser(w http.ResponseWriter, r *http.Request) (*User, err
 	oauthClientConfig := clientcredentials.Config{
 		ClientID:       "admin-cli",
 		ClientSecret:   "",
-		TokenURL:       KEYCLOAK_SERVER + "auth/realms/redhat-external/protocol/openid-connect/token",
+		TokenURL:       path.Join(m.server.String(), "auth/realms/redhat-external/protocol/openid-connect/token"),
 		EndpointParams: url.Values{"grant_type": {"password"}, "username": {username}, "password": {password}},
 	}
 
 	k := oauthClientConfig.Client(context.Background())
-	resp, err := k.Get(fmt.Sprintf("%sauth/realms/redhat-external/account/", KEYCLOAK_SERVER))
+	resp, err := k.Get(path.Join(m.server.String(), "auth/realms/redhat-external/account/"))
 
 	if err != nil {
 		return &User{}, fmt.Errorf("couldn't auth user: %s", err.Error())
@@ -318,7 +319,7 @@ type usersSpec struct {
 }
 
 func (m *MBOPServer) getUsers() (users []User, err error) {
-	resp, err := m.Client.Get(fmt.Sprintf("%sauth/admin/realms/redhat-external/users?max=2000", KEYCLOAK_SERVER))
+	resp, err := m.Client.Get(path.Join(m.server.String(), "/auth/admin/realms/redhat-external/users?max=2000"))
 	if err != nil {
 		fmt.Printf("\n\n%s\n\n", err.Error())
 	}
@@ -544,8 +545,8 @@ func (m *MBOPServer) getMux() *http.ServeMux {
 	oauthClientConfig := clientcredentials.Config{
 		ClientID:       "admin-cli",
 		ClientSecret:   "",
-		TokenURL:       KEYCLOAK_SERVER + "auth/realms/master/protocol/openid-connect/token",
-		EndpointParams: url.Values{"grant_type": {"password"}, "username": {KEYCLOAK_USERNAME}, "password": {KEYCLOAK_PASSWORD}},
+		TokenURL:       path.Join(m.server.String(), "/auth/realms/master/protocol/openid-connect/token"),
+		EndpointParams: url.Values{"grant_type": {"password"}, "username": {m.username}, "password": {m.password}},
 	}
 
 	m.Client = oauthClientConfig.Client(context.Background())
@@ -555,32 +556,16 @@ func (m *MBOPServer) getMux() *http.ServeMux {
 	return mux
 }
 
-var KEYCLOAK_PASSWORD string
-var KEYCLOAK_USERNAME string
-var KEYCLOAK_SERVER string
-
-func init() {
-	KEYCLOAK_SERVER = os.Getenv("KEYCLOAK_SERVER")
-	KEYCLOAK_USERNAME = os.Getenv("KEYCLOAK_USERNAME")
-	KEYCLOAK_PASSWORD = os.Getenv("KEYCLOAK_PASSWORD")
-	if KEYCLOAK_USERNAME == "" {
-		KEYCLOAK_USERNAME = "admin"
-	}
-	if KEYCLOAK_PASSWORD == "" {
-		KEYCLOAK_PASSWORD = "admin"
-	}
-}
-
 type MBOPServer struct {
-	server   string
+	server   *url.URL
 	username string
 	password string
 	Client   *http.Client
 }
 
 func MakeNewMBOPServer() *MBOPServer {
-	KEYCLOAK_USERNAME = os.Getenv("KEYCLOAK_USERNAME")
-	KEYCLOAK_PASSWORD = os.Getenv("KEYCLOAK_PASSWORD")
+	KEYCLOAK_USERNAME := os.Getenv("KEYCLOAK_USERNAME")
+	KEYCLOAK_PASSWORD := os.Getenv("KEYCLOAK_PASSWORD")
 	if KEYCLOAK_USERNAME == "" {
 		KEYCLOAK_USERNAME = "admin"
 	}
@@ -588,8 +573,14 @@ func MakeNewMBOPServer() *MBOPServer {
 		KEYCLOAK_PASSWORD = "admin"
 	}
 
+	keyServer, err := url.Parse(os.Getenv("KEYCLOAK_SERVER"))
+	if err != nil {
+		fmt.Printf("KEYCLOAK server URL was malformed")
+		os.Exit(127)
+	}
+
 	return &MBOPServer{
-		server:   os.Getenv("KEYCLOAK_SERVER"),
+		server:   keyServer,
 		username: KEYCLOAK_USERNAME,
 		password: KEYCLOAK_PASSWORD,
 	}
