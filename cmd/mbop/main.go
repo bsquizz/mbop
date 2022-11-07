@@ -172,7 +172,7 @@ func (m *MBOPServer) jwtHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *MBOPServer) getJWT(realm string) (*JSONStruct, error) {
-	resp, err := http.Get(m.getUrl(fmt.Sprintf("auth/realms/%s/", realm)))
+	resp, err := http.Get(m.getUrl(fmt.Sprintf("/auth/realms/%s/", realm)))
 
 	if err != nil {
 		return nil, err
@@ -218,12 +218,12 @@ func (m *MBOPServer) getUser(w http.ResponseWriter, r *http.Request) (*User, err
 	oauthClientConfig := clientcredentials.Config{
 		ClientID:       "admin-cli",
 		ClientSecret:   "",
-		TokenURL:       m.getUrl("auth/realms/redhat-external/protocol/openid-connect/token"),
+		TokenURL:       m.getUrl("/auth/realms/redhat-external/protocol/openid-connect/token"),
 		EndpointParams: url.Values{"grant_type": {"password"}, "username": {username}, "password": {password}},
 	}
 
 	k := oauthClientConfig.Client(context.Background())
-	resp, err := k.Get(m.getUrl("auth/realms/redhat-external/account/"))
+	resp, err := k.Get(m.getUrl("/auth/realms/redhat-external/account/"))
 
 	if err != nil {
 		return &User{}, fmt.Errorf("couldn't auth user: %s", err.Error())
@@ -318,7 +318,7 @@ type usersSpec struct {
 }
 
 func (m *MBOPServer) getUsers() (users []User, err error) {
-	resp, err := m.Client.Get(m.getUrl("auth/admin/realms/redhat-external/users", map[string]string{"max": "2000"}))
+	resp, err := m.Client.Get(m.getUrl("/auth/admin/realms/redhat-external/users", map[string]string{"max": "2000"}))
 	if err != nil {
 		fmt.Printf("\n\n%s\n\n", err.Error())
 	}
@@ -560,7 +560,7 @@ func (m *MBOPServer) getMux() *http.ServeMux {
 	oauthClientConfig := clientcredentials.Config{
 		ClientID:       "admin-cli",
 		ClientSecret:   "",
-		TokenURL:       m.getUrl("auth/realms/master/protocol/openid-connect/token"),
+		TokenURL:       m.getUrl("/auth/realms/master/protocol/openid-connect/token"),
 		EndpointParams: url.Values{"grant_type": {"password"}, "username": {m.username}, "password": {m.password}},
 	}
 
