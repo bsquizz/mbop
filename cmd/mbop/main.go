@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -12,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
@@ -69,7 +71,7 @@ type V1UserInput struct {
 	Users []string `json:"users"`
 }
 
-func (m *MBOPServer) findUserById(username string) (*User, error) {
+func (m *MBOPServer) findUserByID(username string) (*User, error) {
 	users, err := m.getUsers()
 
 	if err != nil {
@@ -84,7 +86,7 @@ func (m *MBOPServer) findUserById(username string) (*User, error) {
 	return nil, fmt.Errorf("User is not known")
 }
 
-func (m *MBOPServer) findUsersBy(accountNo string, orgId string, adminOnly string, status string, limit int, sortOrder string, queryBy string, input *usersByInput, users *V1UserInput) ([]User, error) {
+func (m *MBOPServer) findUsersBy(accountNo string, orgID string, adminOnly string, status string, limit int, sortOrder string, queryBy string, input *usersByInput, users *V1UserInput) ([]User, error) {
 	usersList, err := m.getUsers()
 
 	if err != nil {
@@ -97,16 +99,9 @@ func (m *MBOPServer) findUsersBy(accountNo string, orgId string, adminOnly strin
 		if adminOnly == "true" && !user.IsOrgAdmin {
 			continue
 		} else {
-			if status == "disabled" {
+			switch status {
+			case "disabled", "enabled", "all":
 				if user.IsActive {
-					continue
-				}
-			} else if status == "enabled" {
-				if !user.IsActive {
-					continue
-				}
-			} else if status != "all" {
-				if !user.IsActive {
 					continue
 				}
 			}
@@ -114,7 +109,7 @@ func (m *MBOPServer) findUsersBy(accountNo string, orgId string, adminOnly strin
 		if accountNo != "" && user.AccountNumber != accountNo {
 			continue
 		}
-		if orgId != "" && user.OrgID != orgId {
+		if orgID != "" && user.OrgID != orgID {
 			continue
 		}
 		if input != nil {
@@ -172,13 +167,15 @@ func (m *MBOPServer) jwtHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *MBOPServer) getJWT(realm string) (*JSONStruct, error) {
-	resp, err := http.Get(m.getUrl(fmt.Sprintf("/auth/realms/%s/", realm)))
+	resp, err := http.Get(m.getURL(fmt.Sprintf("/auth/realms/%s/", realm)))
 
 	if err != nil {
 		return nil, err
 	}
 
-	bdata, err := ioutil.ReadAll(resp.Body)
+	defer resp.Body.Close()
+
+	bdata, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -218,22 +215,24 @@ func (m *MBOPServer) getUser(w http.ResponseWriter, r *http.Request) (*User, err
 	oauthClientConfig := clientcredentials.Config{
 		ClientID:       "admin-cli",
 		ClientSecret:   "",
-		TokenURL:       m.getUrl("/auth/realms/redhat-external/protocol/openid-connect/token"),
+		TokenURL:       m.getURL("/auth/realms/redhat-external/protocol/openid-connect/token"),
 		EndpointParams: url.Values{"grant_type": {"password"}, "username": {username}, "password": {password}},
 	}
 
 	k := oauthClientConfig.Client(context.Background())
-	resp, err := k.Get(m.getUrl("/auth/realms/redhat-external/account/"))
+	resp, err := k.Get(m.getURL("/auth/realms/redhat-external/account/"))
 
 	if err != nil {
 		return &User{}, fmt.Errorf("couldn't auth user: %s", err.Error())
 	}
 
+	defer resp.Body.Close()
+
 	if resp.StatusCode != 200 {
 		return &User{}, fmt.Errorf("user unauthorized: %d", resp.StatusCode)
 	}
 
-	userObj, err := m.findUserById(username)
+	userObj, err := m.findUserByID(username)
 
 	if err != nil {
 		return &User{}, fmt.Errorf("couldn't find user: %s", err.Error())
@@ -318,10 +317,12 @@ type usersSpec struct {
 }
 
 func (m *MBOPServer) getUsers() (users []User, err error) {
-	resp, err := m.Client.Get(m.getUrl("/auth/admin/realms/redhat-external/users", map[string]string{"max": "2000"}))
+	resp, err := m.Client.Get(m.getURL("/auth/admin/realms/redhat-external/users", map[string]string{"max": "2000"}))
 	if err != nil {
 		fmt.Printf("\n\n%s\n\n", err.Error())
 	}
+
+	defer resp.Body.Close()
 
 	obj := &[]usersSpec{}
 
@@ -386,7 +387,7 @@ func (m *MBOPServer) getUsers() (users []User, err error) {
 
 func (m *MBOPServer) usersV1Handler(w http.ResponseWriter, r *http.Request) {
 	urlParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
-	accountId := urlParts[2]
+	accountID := urlParts[2]
 	switch {
 	case urlParts[3] == "users" && r.Method == "GET":
 		adminOnly := r.URL.Query().Get("admin_only")
@@ -396,7 +397,7 @@ func (m *MBOPServer) usersV1Handler(w http.ResponseWriter, r *http.Request) {
 			limit = 0
 		}
 
-		users, err := m.findUsersBy(accountId, "", adminOnly, status, limit, "", "", nil, nil)
+		users, err := m.findUsersBy(accountID, "", adminOnly, status, limit, "", "", nil, nil)
 		if err != nil {
 			http.Error(w, "could not get response", http.StatusInternalServerError)
 			return
@@ -429,7 +430,7 @@ func (m *MBOPServer) usersV1Handler(w http.ResponseWriter, r *http.Request) {
 			limit = 0
 		}
 
-		users, err := m.findUsersBy(accountId, "", adminOnly, status, limit, "", "", filt, nil)
+		users, err := m.findUsersBy(accountID, "", adminOnly, status, limit, "", "", filt, nil)
 		if err != nil {
 			http.Error(w, "could not get response", http.StatusInternalServerError)
 			return
@@ -446,12 +447,12 @@ func (m *MBOPServer) usersV1Handler(w http.ResponseWriter, r *http.Request) {
 
 func (m *MBOPServer) usersV2V3Handler(w http.ResponseWriter, r *http.Request) {
 	urlParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
-	accountId := ""
-	orgId := ""
+	accountID := ""
+	orgID := ""
 	if urlParts[0] == "v2" {
-		accountId = urlParts[2]
+		accountID = urlParts[2]
 	} else {
-		orgId = urlParts[2]
+		orgID = urlParts[2]
 	}
 	adminOnly := r.URL.Query().Get("admin_only")
 	status := r.URL.Query().Get("status")
@@ -472,7 +473,7 @@ func (m *MBOPServer) usersV2V3Handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	users, err := m.findUsersBy(accountId, orgId, adminOnly, status, limit, "", "", obj, nil)
+	users, err := m.findUsersBy(accountID, orgID, adminOnly, status, limit, "", "", obj, nil)
 
 	if err != nil {
 		http.Error(w, "could not get response", http.StatusInternalServerError)
@@ -492,9 +493,9 @@ func (m *MBOPServer) usersV2V3Handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *MBOPServer) entitlements(w http.ResponseWriter, r *http.Request) {
-	ALL_PASS := os.Getenv("ALL_PASS")
+	allPass := os.Getenv("ALL_PASS")
 
-	if ALL_PASS != "" {
+	if allPass != "" {
 		fmt.Printf("ALL_PASS")
 		fmt.Fprint(w, "{\"ansible\": {\"is_entitled\": true, \"is_trial\": false}, \"cost_management\": {\"is_entitled\": true, \"is_trial\": false}, \"insights\": {\"is_entitled\": true, \"is_trial\": false}, \"advisor\": {\"is_entitled\": true, \"is_trial\": false}, \"migrations\": {\"is_entitled\": true, \"is_trial\": false}, \"openshift\": {\"is_entitled\": true, \"is_trial\": false}, \"settings\": {\"is_entitled\": true, \"is_trial\": false}, \"smart_management\": {\"is_entitled\": true, \"is_trial\": false}, \"subscriptions\": {\"is_entitled\": true, \"is_trial\": false}, \"user_preferences\": {\"is_entitled\": true, \"is_trial\": false}, \"notifications\": {\"is_entitled\": true, \"is_trial\": false}, \"integrations\": {\"is_entitled\": true, \"is_trial\": false}, \"automation_analytics\": {\"is_entitled\": true, \"is_trial\": false}}")
 		return
@@ -534,7 +535,7 @@ func (m *MBOPServer) mainHandler(w http.ResponseWriter, r *http.Request) {
 
 var log logr.Logger
 
-func (m *MBOPServer) getUrl(path string, query ...map[string]string) string {
+func (m *MBOPServer) getURL(path string, query ...map[string]string) string {
 	url := url.URL{
 		Scheme: m.server.Scheme,
 		Host:   m.server.Host,
@@ -560,7 +561,7 @@ func (m *MBOPServer) getMux() *http.ServeMux {
 	oauthClientConfig := clientcredentials.Config{
 		ClientID:       "admin-cli",
 		ClientSecret:   "",
-		TokenURL:       m.getUrl("/auth/realms/master/protocol/openid-connect/token"),
+		TokenURL:       m.getURL("/auth/realms/master/protocol/openid-connect/token"),
 		EndpointParams: url.Values{"grant_type": {"password"}, "username": {m.username}, "password": {m.password}},
 	}
 
@@ -579,13 +580,13 @@ type MBOPServer struct {
 }
 
 func MakeNewMBOPServer() *MBOPServer {
-	KEYCLOAK_USERNAME := os.Getenv("KEYCLOAK_USERNAME")
-	KEYCLOAK_PASSWORD := os.Getenv("KEYCLOAK_PASSWORD")
-	if KEYCLOAK_USERNAME == "" {
-		KEYCLOAK_USERNAME = "admin"
+	KeyCloakUsername := os.Getenv("KEYCLOAK_USERNAME")
+	KeyCloakPassword := os.Getenv("KEYCLOAK_PASSWORD")
+	if KeyCloakUsername == "" {
+		KeyCloakUsername = "admin"
 	}
-	if KEYCLOAK_PASSWORD == "" {
-		KEYCLOAK_PASSWORD = "admin"
+	if KeyCloakPassword == "" {
+		KeyCloakPassword = "admin"
 	}
 
 	keyServer, err := url.Parse(os.Getenv("KEYCLOAK_SERVER"))
@@ -596,15 +597,20 @@ func MakeNewMBOPServer() *MBOPServer {
 
 	return &MBOPServer{
 		server:   keyServer,
-		username: KEYCLOAK_USERNAME,
-		password: KEYCLOAK_PASSWORD,
+		username: KeyCloakUsername,
+		password: KeyCloakPassword,
 	}
 }
 
 func main() {
 	mbServer := MakeNewMBOPServer()
+	mbServerObj := http.Server{
+		Addr:              ":8090",
+		ReadHeaderTimeout: 2 * time.Second,
+		Handler:           mbServer.getMux(),
+	}
 
-	if err := http.ListenAndServe(":8090", mbServer.getMux()); err != nil {
+	if err := mbServerObj.ListenAndServe(); err != nil {
 		log.Error(err, "reason", "server couldn't start")
 	}
 }
