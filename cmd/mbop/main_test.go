@@ -23,7 +23,7 @@ func (suite *TestSuite) TestJWTGet() {
 	k8sServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/auth/realms/redhat-external/" {
 			w.WriteHeader(http.StatusOK)
-			w.Write(testData)
+			_, _ = w.Write(testData)
 		} else {
 			w.WriteHeader(http.StatusBadRequest)
 		}
@@ -41,11 +41,13 @@ func (suite *TestSuite) TestJWTGet() {
 
 	assert.Nil(suite.T(), err, "error was not nil")
 	assert.Equal(suite.T(), 200, resp.StatusCode, "status code not good")
+
+	defer resp.Body.Close()
 }
 
 func (suite *TestSuite) TestGetUrl() {
 	os.Setenv("KEYCLOAK_SERVER", "http://test")
-	path := MakeNewMBOPServer().getUrl("path", map[string]string{"hi": "you"})
+	path := MakeNewMBOPServer().getURL("path", map[string]string{"hi": "you"})
 	assert.Equal(suite.T(), "http://test/path?hi=you", path, "did not match")
 }
 
