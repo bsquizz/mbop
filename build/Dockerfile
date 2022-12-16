@@ -13,9 +13,7 @@ RUN go mod download
 COPY cmd/mbop/main.go main.go
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build
 
-# Use distroless as minimal base image to package the manager binary
-# Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM gcr.io/distroless/static:nonroot
+FROM registry.access.redhat.com/ubi8/ubi-minimal:8.7-923
 WORKDIR /
 COPY --from=builder /workspace/mbop .
 USER 65532:65532
