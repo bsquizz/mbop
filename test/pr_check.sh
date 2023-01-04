@@ -33,6 +33,7 @@ source $CICD_ROOT/build.sh
 source ${CICD_ROOT}/_common_deploy_logic.sh
 
 set -x
+
 export BONFIRE_NS_REQUESTER="${JOB_NAME}-${BUILD_NUMBER}"
 export NAMESPACE=$(bonfire namespace reserve --pool ${NAMESPACE_POOL})
 SMOKE_NAMESPACE=$NAMESPACE  # track which namespace was used here for 'teardown' in common_deploy_logic
@@ -45,7 +46,8 @@ bonfire deploy \
     --timeout ${DEPLOY_TIMEOUT} \
     --frontends ${DEPLOY_FRONTENDS} \
     ${COMPONENTS_ARG} \
-    ${COMPONENTS_RESOURCES_ARG} \
+    ${COMPONENTS_RESOURCES_ARG}
+
 set +x
 
 # Update mbop in this environment to use the newly built PR image
