@@ -11,9 +11,16 @@ COMPONENT_NAME="rbac"  # name of app-sre "resourceTemplate" in deploy.yaml for t
 IQE_PLUGINS="rbac,rbac_frontend"  # name of the IQE plugin for this APP
 IQE_MARKER_EXPRESSION="outage"  # This is the value passed to pytest -m
 IQE_CJI_TIMEOUT="10m"  # This is the time to wait for smoke test to complete or fail
-DEPLOY_FRONTENDS=true
-IQE_SELENIUM=true
-IQE_ENV=ephemeral
+DEPLOY_FRONTENDS="true"
+IQE_SELENIUM="true"
+IQE_ENV="ephemeral"
+
+# Use stage components for this check
+REF_ENV="insights-stage"
+
+# Override the '--set-template-ref' arg that 'deploy_ephemeral_env.sh' will use. If f we do not do
+# this, bonfire tries to set the rbac template ref to be this PR's git ref which will be invalid
+EXTRA_DEPLOY_ARGS="--set-template-ref rbac=master"
 
 # Install bonfire repo/initialize
 CICD_URL=https://raw.githubusercontent.com/RedHatInsights/bonfire/master/cicd
