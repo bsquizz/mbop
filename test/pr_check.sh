@@ -53,7 +53,7 @@ set +x
 # Update mbop in this environment to use the newly built PR image
 CLOWDENV_NAME="env-$NAMESPACE"
 kubectl patch clowdenvironment ${CLOWDENV_NAME} --type='merge' -p '{"spec":{"providers":{"web":{"images":{"mockBop":"'${IMAGE}:${IMAGE_TAG}'"}}}}}'
-kubectl rollout status deployment/${CLOWDENV_NAME}-mbop
+kubectl rollout status deployment/${CLOWDENV_NAME}-mbop -n $NAMESPACE
 
 # Run rbac test
 source $CICD_ROOT/cji_smoke_test.sh
