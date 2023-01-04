@@ -31,3 +31,4 @@ kubectl patch clowdenvironment ${CLOWDENV_NAME} --type='merge' -p '{"spec":{"pro
 kubectl rollout status deployment/${CLOWDENV_NAME}-mbop
 
 source $CICD_ROOT/cji_smoke_test.sh
+
