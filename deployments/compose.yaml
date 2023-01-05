@@ -3,7 +3,7 @@ services:
     image: quay.io/cloudservices/mbop:${MBOP_IMAGE_TAG:-latest}
     build:
       context: ../
-      dockerfile: build/Dockerfile
+      dockerfile: Dockerfile
     ports:
       - "8090:8090"
     environment:
